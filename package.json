@@ -1,0 +1,27 @@
+{
+  "name": "business-analyst-fs",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "backend",
+    "interaction"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "eslint": "^9.9.0",
+    "globals": "^17.3.0",
+    "husky": "^9.1.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.3.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.55.0"
+  }
+}
