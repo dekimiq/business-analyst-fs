@@ -8,7 +8,7 @@ export default [
     languageOptions: {
       globals: globals.node,
       parserOptions: {
-        projectService: true,
+        project: ['./tsconfig.base.json', './backend/tsconfig.json', './interaction/tsconfig.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
