@@ -1,0 +1,104 @@
+services:
+  # =========================
+  # POSTGRES BACKEND
+  # =========================
+  postgres_backend:
+    image: postgres:16-alpine
+    container_name: postgres_backend
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${BACKEND_DB_USER}
+      POSTGRES_PASSWORD: ${BACKEND_DB_PASSWORD}
+      POSTGRES_DB: ${BACKEND_DB_DATABASE}
+    volumes:
+      - postgres_backend_data:/var/lib/postgresql/data
+    networks:
+      - backend_net
+    ports:
+      - '5433:5432'
+
+  # =========================
+  # POSTGRES INTERACTION
+  # =========================
+  postgres_interaction:
+    image: postgres:16-alpine
+    container_name: postgres_interaction
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${INTERACTION_DB_USER}
+      POSTGRES_PASSWORD: ${INTERACTION_DB_PASSWORD}
+      POSTGRES_DB: ${INTERACTION_DB_DATABASE}
+    volumes:
+      - postgres_interaction_data:/var/lib/postgresql/data
+    networks:
+      - interaction_net
+    ports:
+      - '5434:5432'
+
+  # =========================
+  # REDIS BACKEND
+  # =========================
+  redis_backend:
+    image: redis:7-alpine
+    container_name: redis_backend
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_backend_data:/data
+    networks:
+      - backend_net
+    ports:
+      - '6380:6379'
+
+  # =========================
+  # REDIS INTERACTION
+  # =========================
+  redis_interaction:
+    image: redis:7-alpine
+    container_name: redis_interaction
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_interaction_data:/data
+    networks:
+      - interaction_net
+    ports:
+      - '6381:6379'
+
+  # =========================
+  # NGINX REVERSE PROXY
+  # =========================
+  nginx:
+    image: nginx:stable-alpine
+    container_name: nginx_proxy
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - '80:80'
+    networks:
+      - backend_net
+      - interaction_net
+      - proxy_net
+
+# =========================
+# NETWORKS
+# =========================
+networks:
+  backend_net:
+    driver: bridge
+
+  interaction_net:
+    driver: bridge
+
+  proxy_net:
+    driver: bridge
+
+# =========================
+# VOLUMES
+# =========================
+volumes:
+  postgres_backend_data:
+  postgres_interaction_data:
+  redis_backend_data:
+  redis_interaction_data:

@@ -1,16 +1,17 @@
-# Dev
-
 install:
 	npm install
 
-dev-all:
-	npm run dev --workspaces
+clean:
+	rm -rf node_modules
+	rm -rf backend/node_modules
+	rm -rf interaction/node_modules
 
-dev-back:
-	npm run dev --workspace=backend
+dev:
+	docker compose up -d
+	npm run dev
 
-dev-intr:
-	npm run dev --workspace=interaction
+dev-down:
+	docker compose down
 
 
 # Code style
