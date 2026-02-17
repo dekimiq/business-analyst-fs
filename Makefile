@@ -31,3 +31,8 @@ format-fix:
 check:
 	npm run lint
 	npm run format
+
+fix:
+	npm run lint:fix
+	npm run format:fix
+
