@@ -5,10 +5,11 @@
   "type": "module",
   "license": "UNLICENSED",
   "scripts": {
-    "start": "node bin/server.js",
+    "start": "node --env-file=../.env --env-file=.env bin/server.js",
     "build": "node ace build",
     "dev": "node --env-file=../.env --env-file=.env ace serve --hmr",
-    "test": "node ace test",
+    "test": "node --env-file=../.env --env-file=.env ace test",
+    "ace": "node --env-file=../.env --env-file=.env ace",
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit"
