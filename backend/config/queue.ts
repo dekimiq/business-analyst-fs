@@ -25,7 +25,10 @@ export default defineConfig({
     | @see https://docs.bullmq.io/guide/retrying-failing-jobs
     |
     */
-    attempts: 3,
+    // YandexSyncService управляет resume сам через currentSyncDate.
+    // BullMQ retry запустил бы джобу с нуля — это НЕ нужно.
+    // Ошибка обрабатывается в job.failed() → pending→partial.
+    attempts: 1,
 
     /*
     |--------------------------------------------------------------------------
