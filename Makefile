@@ -1,3 +1,58 @@
+
+# =============================================================================
+# Infrastructure
+# =============================================================================
+
+up:
+	docker compose up -d
+
+down:
+	docker compose down
+
+# =============================================================================
+# Database
+# =============================================================================
+
+migrate:
+	cd backend && node --env-file=../.env --env-file=.env ace migration:run --force
+
+migrate-fresh:
+	cd backend && node --env-file=../.env --env-file=.env ace migration:fresh --force
+
+# =============================================================================
+# Development
+# =============================================================================
+
+# Первичная инициализация бэкенда (первый запуск после клона).
+# Необходим make migrate.
+
+# Запуск рабочего окружения.
+# migration:run идемпотентен — безопасно запускать каждый раз.
+dev: up migrate
+	npm run dev
+
+# Только очередь (полезно для отладки воркера отдельно от сервера)
+queue:
+	cd backend && node --env-file=../.env --env-file=.env ace queue:listen
+
+# Полный сброс: пересоздать БД и запустить dev
+dev-fresh: up migrate-fresh
+	npm run dev
+
+# Запуск тестов
+test:
+	cd backend && node --env-file=../.env --env-file=.env ace test
+
+test-unit:
+	cd backend && node --env-file=../.env --env-file=.env ace test -- --suite=unit
+
+test-functional:
+	cd backend && node --env-file=../.env --env-file=.env ace test -- --suite=functional
+
+# =============================================================================
+# Dependencies
+# =============================================================================
+
 install:
 	npm install
 
@@ -6,15 +61,9 @@ clean:
 	rm -rf backend/node_modules
 	rm -rf interaction/node_modules
 
-dev:
-	docker compose up -d
-	npm run dev
-
-dev-down:
-	docker compose down
-
-
+# =============================================================================
 # Code style
+# =============================================================================
 
 lint:
 	npm run lint
@@ -35,4 +84,3 @@ check:
 fix:
 	npm run lint:fix
 	npm run format:fix
-
