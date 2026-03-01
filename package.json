@@ -13,8 +13,9 @@
     "format:fix": "prettier --write .",
     "prepare": "husky",
     "dev:backend": "npm run dev --workspace=backend",
+    "dev:queue": "npm run queue --workspace=backend",
     "dev:interaction": "npm run dev --workspace=interaction",
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:interaction\" --names \"BACK,INTR\" --prefix-colors \"blue,magenta\""
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:queue\" \"npm run dev:interaction\" --names \"BACK,QUEUE,INTR\" --prefix-colors \"blue,yellow,magenta\""
   },
   "devDependencies": {
     "@types/node": "^25.2.3",
