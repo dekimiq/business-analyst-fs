@@ -53,6 +53,10 @@ export default defineConfig({
     () => import('@adonisjs/cors/cors_provider'),
     () => import('@adonisjs/core/providers/vinejs_provider'),
     () => import('@acidiney/bull-queue/queue_provider'),
+    {
+      file: () => import('#providers/yandex_bootstrap_provider'),
+      environment: ['web'],
+    },
   ],
 
   /*
