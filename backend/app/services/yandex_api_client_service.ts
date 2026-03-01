@@ -1,30 +1,69 @@
 import axios, { AxiosInstance } from 'axios'
 import { DateTime } from 'luxon'
-import env from '#start/env'
 import { withYandexRetry } from '../utils/yandex_retry.js'
-import {
+import { chunkArray } from '../utils/universal.js'
+import type { IYandexApiClient } from '../contracts/i_yandex_api_client.js'
+import type {
   YandexCampaign,
   YandexGetCampaigns,
   YandexAdGroup,
   YandexGetAdGroups,
   YandexAd,
   YandexGetAds,
+  YandexDailyStat,
 } from '../types/yandex.js'
-import { chunkArray } from '../utils/universal.js'
 
-export default class YandexApiClientService {
+export default class YandexApiClientService implements IYandexApiClient {
   private client: AxiosInstance
 
-  constructor() {
+  /**
+   * @param token - OAuth 2.0 токен Яндекс.Директ. Читается из integration_metadata.токен
+   *             (BullMQ-джоб передаёт его до создания экземпляра).
+   */
+  constructor(token: string) {
     this.client = axios.create({
-      baseURL: 'https://api-sandbox.direct.yandex.com/json/v5',
+      baseURL: 'https://api.direct.yandex.com/json/v5',
       headers: {
-        'Authorization': `Bearer ${env.get('YANDEX_DIRECT_TOKEN')}`,
+        'Authorization': `Bearer ${token}`,
         'Accept-Language': 'ru',
-        // 'Client-Login': env.get('YANDEX_CLIENT_LOGIN'), // Если агентский аккаунт
       },
     })
   }
+
+  // ---------------------------------------------------------------------------
+  // Ping
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Проверяет валидность токена лёгким запросом к API.
+   * Используем getCampaigns с Limit=1 — минимальный возможный запрос.
+   */
+  async ping(): Promise<boolean> {
+    try {
+      const response = await this.client.post('/campaigns', {
+        method: 'get',
+        params: {
+          SelectionCriteria: {},
+          FieldNames: ['Id'],
+          Page: { Limit: 1, Offset: 0 },
+        },
+      })
+      return response.status === 200
+    } catch {
+      return false
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pagination helper
+  // ---------------------------------------------------------------------------
+
+  private async fetchAllPages<TItem, TResult extends { result: { LimitedBy?: number } }>(
+    fetchPage: (page: {
+      Limit: number
+      Offset: number
+    }) => Promise<{ status: number; data: TResult }>
+  ): Promise<TItem[]>
 
   private async fetchAllPages<TItem, TResult extends { result: { LimitedBy?: number } }>(
     fetchPage: (page: {
@@ -32,22 +71,33 @@ export default class YandexApiClientService {
       Offset: number
     }) => Promise<{ status: number; data: TResult }>,
     extractItems: (result: TResult) => TItem[]
+  ): Promise<TItem[]>
+
+  private async fetchAllPages<TItem, TResult extends { result: { LimitedBy?: number } }>(
+    fetchPage: (page: {
+      Limit: number
+      Offset: number
+    }) => Promise<{ status: number; data: TResult }>,
+    extractItems?: (result: TResult) => TItem[]
   ): Promise<TItem[]> {
     const all: TItem[] = []
     let offset = 0
     const limit = 10_000
 
     while (true) {
-      const result: TResult = await withYandexRetry(() =>
-        fetchPage({ Limit: limit, Offset: offset })
-      )
-      all.push(...extractItems(result))
+      const result = await withYandexRetry(() => fetchPage({ Limit: limit, Offset: offset }))
+      const items = extractItems ? extractItems(result) : (result as unknown as TItem[])
+      all.push(...items)
       if (!result.result.LimitedBy) break
       offset = result.result.LimitedBy
     }
 
     return all
   }
+
+  // ---------------------------------------------------------------------------
+  // Campaigns / AdGroups / Ads
+  // ---------------------------------------------------------------------------
 
   async getCampaigns(): Promise<YandexCampaign[]> {
     return this.fetchAllPages<YandexCampaign, YandexGetCampaigns>(
@@ -64,15 +114,13 @@ export default class YandexApiClientService {
     )
   }
 
-  async getAdGroups(campaignIds: number[]) {
+  async getAdGroups(campaignIds: number[]): Promise<YandexAdGroup[]> {
     if (campaignIds.length === 0) {
-      throw new Error('API запрос:`/adgroups`. Список id кампаний не может быть пустой.')
+      throw new Error('API запрос `adgroups`: список CampaignIds не может быть пустым.')
     }
 
-    const apiLimitIds = 10
+    const chunks = chunkArray(campaignIds, 10)
     const allResults: YandexAdGroup[] = []
-
-    const chunks = chunkArray(campaignIds, apiLimitIds)
 
     for (const chunk of chunks) {
       const items = await this.fetchAllPages<YandexAdGroup, YandexGetAdGroups>(
@@ -80,9 +128,7 @@ export default class YandexApiClientService {
           this.client.post('/adgroups', {
             method: 'get',
             params: {
-              SelectionCriteria: {
-                CampaignIds: chunk,
-              },
+              SelectionCriteria: { CampaignIds: chunk },
               FieldNames: ['Id', 'Name', 'CampaignId'],
               Page: page,
             },
@@ -95,15 +141,13 @@ export default class YandexApiClientService {
     return allResults
   }
 
-  async getAds(adGroupIds: number[]) {
+  async getAds(adGroupIds: number[]): Promise<YandexAd[]> {
     if (adGroupIds.length === 0) {
-      throw new Error('API запрос:`/ads`. Список id кампаний не может быть пустой.')
+      throw new Error('API запрос `ads`: список AdGroupIds не может быть пустым.')
     }
 
-    const apiLimitIds = 1_000
+    const chunks = chunkArray(adGroupIds, 1_000)
     const allResults: YandexAd[] = []
-
-    const chunks = chunkArray(adGroupIds, apiLimitIds)
 
     for (const chunk of chunks) {
       const items = await this.fetchAllPages<YandexAd, YandexGetAds>(
@@ -111,9 +155,7 @@ export default class YandexApiClientService {
           this.client.post('/ads', {
             method: 'get',
             params: {
-              SelectionCriteria: {
-                AdGroupIds: chunk,
-              },
+              SelectionCriteria: { AdGroupIds: chunk },
               FieldNames: ['Id', 'AdGroupId', 'Type', 'State', 'Status', 'TextAd'],
               Page: page,
             },
@@ -126,34 +168,105 @@ export default class YandexApiClientService {
     return allResults
   }
 
-  async getDailyStats({ dateFrom, dateTo }: { dateFrom: DateTime; dateTo: DateTime }) {
+  // ---------------------------------------------------------------------------
+  // Daily stats (Reports API — TSV)
+  // ---------------------------------------------------------------------------
+
+  async getDailyStats({
+    dateFrom,
+    dateTo,
+  }: {
+    dateFrom: DateTime
+    dateTo: DateTime
+  }): Promise<YandexDailyStat[]> {
     if (!dateFrom.isValid || !dateTo.isValid) {
-      throw new Error('API запрос:`/reports`. Некорректная дата.')
+      throw new Error('API запрос `reports`: некорректная дата.')
     }
-
     if (dateTo < dateFrom || dateTo > DateTime.now()) {
-      throw new Error('API запрос:`/reports`. Неверный диапозон дат.')
+      throw new Error('API запрос `reports`: неверный диапазон дат.')
     }
 
-    const from = dateFrom.toISODate()
-    const to = dateTo.toISODate()
+    const from = dateFrom.toISODate()!
+    const to = dateTo.toISODate()!
 
-    return withYandexRetry(async () => {
-      return this.client.post('/reports', {
-        params: {
-          SelectionCriteria: {
-            DateFrom: from,
-            DateTo: to,
+    const tsvText = await withYandexRetry(async () => {
+      return this.client.post<string>(
+        '/reports',
+        {
+          params: {
+            SelectionCriteria: {
+              DateFrom: from,
+              DateTo: to,
+            },
+            FieldNames: [
+              'Date',
+              'AdId',
+              'Impressions',
+              'Clicks',
+              'Cost',
+              'Ctr',
+              'AvgCpc',
+              'AvgCpm',
+            ],
+            ReportName: `daily_stats_${from}_${to}_${Date.now()}`,
+            ReportType: 'AD_PERFORMANCE_REPORT',
+            DateRangeType: 'CUSTOM_DATE',
+            Format: 'TSV',
+            IncludeVAT: 'YES',
+            IncludeDiscount: 'NO',
           },
-          FieldNames: ['Date', 'AdId', 'Impressions', 'Clicks', 'Cost', 'Ctr', 'AvgCpc', 'AvgCpm'],
-          ReportName: `daily_stats_${from}_${to}`,
-          ReportType: 'AD_PERFORMANCE_REPORT',
-          DateRangeType: 'CUSTOM_DATE',
-          Format: 'TSV',
-          IncludeVAT: 'YES',
-          IncludeDiscount: 'NO',
         },
-      })
+        {
+          headers: {
+            returnMoneyInMicros: 'true',
+            skipReportHeader: 'true',
+            skipColumnHeader: 'false',
+            skipReportSummary: 'true',
+          },
+          responseType: 'text',
+        }
+      )
     })
+
+    return this.parseTsvReport(tsvText)
+  }
+
+  // ---------------------------------------------------------------------------
+  // TSV parser
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Разбирает TSV-ответ от Reports API.
+   *
+   * Формат (при skipReportHeader=true, skipReportSummary=true):
+   *   Строка 1: заголовки колонок (FieldNames)
+   *   Строки 2..N: данные
+   */
+  private parseTsvReport(tsv: string): YandexDailyStat[] {
+    const lines = tsv.trim().split('\n')
+    if (lines.length < 2) return []
+
+    const [headerLine, ...dataLines] = lines
+    const headers = headerLine.split('\t')
+
+    const idx = (name: string) => headers.indexOf(name)
+
+    return dataLines
+      .filter((line) => line.trim() && !line.startsWith('Total'))
+      .map((line) => {
+        const cols = line.split('\t')
+        const avgCpcRaw = cols[idx('AvgCpc')]
+
+        return {
+          Date: cols[idx('Date')],
+          AdId: Number(cols[idx('AdId')]),
+          Impressions: Number(cols[idx('Impressions')]),
+          Clicks: Number(cols[idx('Clicks')]),
+          Cost: Number(cols[idx('Cost')]),
+          Ctr: Number(cols[idx('Ctr')]),
+          AvgCpc: avgCpcRaw === '--' || avgCpcRaw === null ? null : Number(avgCpcRaw),
+          AvgCpm: Number(cols[idx('AvgCpm')]),
+        }
+      })
   }
 }
