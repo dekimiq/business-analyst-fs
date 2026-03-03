@@ -1,8 +1,0 @@
-build/
-dist/
-node_modules/
-database/migrations/
-**/database/migrations/**
-README.md
-package.json
-package-lock.json
