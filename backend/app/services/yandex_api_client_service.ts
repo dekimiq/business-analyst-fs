@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios'
 import { DateTime } from 'luxon'
+import { getNow } from '#utils/yandex_dates'
 import { withYandexRetry } from '../utils/yandex_retry.js'
 import { chunkArray } from '../utils/universal.js'
 import type { IYandexApiClient } from '../contracts/i_yandex_api_client.js'
@@ -182,7 +183,7 @@ export default class YandexApiClientService implements IYandexApiClient {
     if (!dateFrom.isValid || !dateTo.isValid) {
       throw new Error('API запрос `reports`: некорректная дата.')
     }
-    if (dateTo < dateFrom || dateTo > DateTime.now()) {
+    if (dateTo < dateFrom || dateTo > getNow()) {
       throw new Error('API запрос `reports`: неверный диапазон дат.')
     }
 
@@ -232,16 +233,45 @@ export default class YandexApiClientService implements IYandexApiClient {
   }
 
   // ---------------------------------------------------------------------------
+  // Changes API
+  // ---------------------------------------------------------------------------
+
+  async getServerTimestamp(): Promise<string> {
+    const defaultTimestamp = '1970-01-01T00:00:00Z'
+    try {
+      const result = await this.checkChanges(defaultTimestamp)
+      return result.Timestamp
+    } catch {
+      return getNow().toUTC().toFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    }
+  }
+
+  async checkChanges(lastTimestamp: string): Promise<{
+    Timestamp: string
+    CampaignsStat?: Array<{ CampaignId: number; BorderDate?: string }>
+  }> {
+    const result = await withYandexRetry(() =>
+      this.client.post('/changes', {
+        method: 'check',
+        params: {
+          Timestamp: lastTimestamp,
+          FieldNames: ['CampaignsStat'],
+        },
+      })
+    )
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = (result as any).data || result
+    return data.result as {
+      Timestamp: string
+      CampaignsStat?: Array<{ CampaignId: number; BorderDate?: string }>
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // TSV parser
   // ---------------------------------------------------------------------------
 
-  /**
-   * Разбирает TSV-ответ от Reports API.
-   *
-   * Формат (при skipReportHeader=true, skipReportSummary=true):
-   *   Строка 1: заголовки колонок (FieldNames)
-   *   Строки 2..N: данные
-   */
   private parseTsvReport(tsv: string): YandexDailyStat[] {
     const lines = tsv.trim().split('\n')
     if (lines.length < 2) return []

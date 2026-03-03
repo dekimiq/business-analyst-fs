@@ -34,6 +34,8 @@
     "#database/*": "./database/*.js",
     "#start/*": "./start/*.js",
     "#tests/*": "./tests/*.js",
+    "#tests/helpers/*": "./tests/helpers/*.js",
+    "#types/*": "./app/types/*.js",
     "#config/*": "./config/*.js"
   },
   "devDependencies": {

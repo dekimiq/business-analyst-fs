@@ -1,10 +1,44 @@
 import axios from 'axios'
 
-const RETRY_DELAYS = [360, 540, 720, 900, 1080]
-const REPORT_DELAYS = [30, 60, 120, 180, 300]
-const UNIVERSAL_DELAY = 100
+// ---------------------------------------------------------------------------
+// Задержки (сек)
+// ---------------------------------------------------------------------------
 
-const NOT_ENOUGH_UNITS_ERROR_CODE = 152
+const RETRY_DELAYS_MS = [360, 540, 720, 900, 1080] as const
+const REPORT_DELAYS_MS = [30, 60, 120, 180, 300] as const
+const UNIVERSAL_DELAY_MS = 60
+
+// ---------------------------------------------------------------------------
+// Коды ошибок Яндекс API (в теле 200-ответа)
+// ---------------------------------------------------------------------------
+
+const LIMIT_API_ERROR_CODES: readonly number[] = [152, 52]
+
+// ---------------------------------------------------------------------------
+// HTTP-статусы
+// ---------------------------------------------------------------------------
+
+const RETRYABLE_HTTP_STATUSES: readonly number[] = [429, 503, 504, 506]
+const FATAL_HTTP_STATUSES: readonly number[] = [400, 401, 403, 502, 500]
+
+// ---------------------------------------------------------------------------
+// Кастомные ошибки
+// ---------------------------------------------------------------------------
+
+export class YandexUnknownError extends Error {}
+export class YandexRetryExhaustedError extends Error {}
+export class YandexAuthError extends Error {
+  constructor() {
+    super('[YandexRetry] Ошибка авторизации — токен невалиден или истёк (401/403).')
+    this.name = 'YandexAuthError'
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const sleep = (seconds: number) => new Promise((resolve) => setTimeout(resolve, seconds * 1000))
 
 interface YandexApiErrorBody {
   error_code: number
@@ -13,128 +47,143 @@ interface YandexApiErrorBody {
   request_id: string
 }
 
-const sleep = (seconds: number) => new Promise((resolve) => setTimeout(resolve, seconds * 1000))
+// ---------------------------------------------------------------------------
+// withYandexRetry
+// ---------------------------------------------------------------------------
 
-export class YandexUnknownError extends Error {}
-export class YandexRetryExhaustedError extends Error {}
-
-/**
- * Ошибка авторизации (HTTP 401 / 403).
- * Означает что токен невалиден или отозван.
- * Ловится YandexSyncService для записи маркера 'token_error' в lastError.
- */
-export class YandexAuthError extends Error {
-  constructor() {
-    super('[Yandex] Ошибка авторизации — токен невалиден или истёк (401/403).')
-    this.name = 'YandexAuthError'
-  }
-}
+type RetryErrorType = 'limit' | 'network' | 'unknown' | null
 
 export async function withYandexRetry<T>(
   fn: () => Promise<{ status: number; data: T }>
 ): Promise<T> {
   let attempt = 0
-  type LIMIT = 'LIMIT'
-  type ERROR = 'ERROR'
-  let typeError: null | LIMIT | ERROR = null
-  while (attempt < RETRY_DELAYS.length) {
+  let lastErrorType: RetryErrorType = null
+
+  while (attempt < RETRY_DELAYS_MS.length) {
     try {
       const response = await fn()
 
       if (response.status === 200) {
         const maybeError = (response.data as { error?: YandexApiErrorBody }).error
+
         if (maybeError) {
           const { error_code, error_detail } = maybeError
-          console.error(
-            `[Yandex] Ошибка API в теле ответа. Код: ${error_code}. Описание: ${error_detail}`
-          )
 
-          if (error_code === NOT_ENOUGH_UNITS_ERROR_CODE) {
-            const delay = RETRY_DELAYS[attempt] ?? 1080
-            console.warn(
-              `[Yandex] Недостаточно баллов API (error_code 152), жду ${delay} сек... (попытка ${attempt + 1}/${RETRY_DELAYS.length})`
+          if (LIMIT_API_ERROR_CODES.includes(error_code)) {
+            const delay = RETRY_DELAYS_MS[attempt] ?? 1080
+            console.log(
+              `[YandexRetry] Ошибка - недостаточно баллов ` +
+                `(error_code=${error_code}), жду ${delay} сек...`
             )
-            typeError = 'LIMIT'
+            lastErrorType = 'limit'
             await sleep(delay)
             attempt++
             continue
           }
-
           throw new YandexUnknownError(
-            `[Yandex] Ошибка API (error_code ${error_code}): ${error_detail}`
+            `[YandexRetry] Фатальная ошибка API (error_code=${error_code}): ${error_detail}`
           )
         }
-
         return response.data
       }
 
       if (response.status === 202) {
-        const delay = REPORT_DELAYS[attempt] ?? 300
-        console.log(`[Yandex] Отчет готовится (202), жду ${delay} сек...`)
-        typeError = null
+        const delay = REPORT_DELAYS_MS[attempt] ?? 300
+        console.log(`[YandexRetry] 202 — отчёт готовится, жду ${delay} сек...`)
+        lastErrorType = null
         await sleep(delay)
         attempt++
         continue
       }
 
       if (response.status === 201) {
-        const delay = RETRY_DELAYS[attempt] ?? 300
-        console.log(`[Yandex] Отчет поставлен в очередь (201), жду ${delay} сек...`)
-        typeError = null
+        const delay = RETRY_DELAYS_MS[attempt] ?? 1080
+        console.log(`[YandexRetry] 201 — отчёт в очереди, жду ${delay} сек...`)
+        lastErrorType = null
         await sleep(delay)
         attempt++
         continue
       }
+
+      throw new YandexUnknownError(
+        `[YandexRetry] Неожиданный HTTP-статус ответа: ${response.status}`
+      )
     } catch (error) {
+      if (error instanceof YandexAuthError || error instanceof YandexUnknownError) {
+        throw error
+      }
+
       if (axios.isAxiosError(error)) {
         const status = error.response?.status
-        const data = error.response?.data
 
-        if (status === 400) {
-          console.error('[Yandex] Ошибка 400, проверьте параметры запроса:', data)
-          throw new YandexUnknownError('[Yandex] Попытка запроса. Неверный запрос.')
-        }
-
-        if (status === 401 || status === 403) {
-          console.error('[Yandex] Ошибка авторизации (401/403). Токен невалиден или истёк:', data)
-          throw new YandexAuthError()
-        }
-
-        if (status === 429) {
-          const delay = RETRY_DELAYS[attempt]
-          console.warn(`[Yandex] Лимит запросов (${status}), жду ${delay} сек...`)
-          typeError = 'LIMIT'
+        if (!error.response) {
+          const delay = UNIVERSAL_DELAY_MS
+          console.warn(
+            `[YandexRetry] Сетевая ошибка (${error.code ?? 'NETWORK_ERROR'}), жду ${delay} сек... ` +
+              `(попытка ${attempt + 1}/${RETRY_DELAYS_MS.length})`
+          )
+          lastErrorType = 'network'
           await sleep(delay)
           attempt++
           continue
         }
 
-        if (status === 506) {
-          const delay = RETRY_DELAYS[attempt]
-          console.warn(`[Yandex] Сервис временно недоступен (506), жду ${delay} сек...`)
-          typeError = 'LIMIT'
+        if (status && FATAL_HTTP_STATUSES.includes(status)) {
+          if (status === 401 || status === 403) {
+            console.error(`[YandexRetry] ${status} — токен невалиден:`, error.response.data)
+            throw new YandexAuthError()
+          }
+
+          console.error(`[YandexRetry] ${status} Bad Request:`, error.response.data)
+          throw new YandexUnknownError(
+            `[YandexRetry] Неверный запрос (${status}). Проверьте параметры.`
+          )
+        }
+
+        if (status && RETRYABLE_HTTP_STATUSES.includes(status)) {
+          const delay = RETRY_DELAYS_MS[attempt] ?? 1080
+          console.warn(
+            `[YandexRetry] HTTP ${status}, жду ${delay} сек... ` +
+              `(попытка ${attempt + 1}/${RETRY_DELAYS_MS.length})`
+          )
+          lastErrorType = 'limit'
           await sleep(delay)
           attempt++
           continue
         }
 
-        const delay = UNIVERSAL_DELAY
-        console.error(`[Yandex] Неожиданный статус: ${status}, жду ${delay} сек...`)
-        typeError = 'ERROR'
+        const delay = UNIVERSAL_DELAY_MS
+        console.error(
+          `[YandexRetry] Неизвестный HTTP ${status}, жду ${delay} сек... ` +
+            `(попытка ${attempt + 1}/${RETRY_DELAYS_MS.length})`
+        )
+        lastErrorType = 'unknown'
         await sleep(delay)
         attempt++
         continue
       }
+
+      throw error
     }
   }
 
-  if (typeError === 'LIMIT' || typeError === null) {
+  // ---------------------------------------------------------------------------
+  // Все 5 попыток исчерпаны
+  // ---------------------------------------------------------------------------
+
+  if (lastErrorType === 'limit') {
     throw new YandexRetryExhaustedError(
-      '[Yandex] Все 5 попыток исчерпаны. Лимиты Яндекса исчерпаны на сегодня.'
+      '[YandexRetry] Все попытки исчерпаны — лимиты Яндекс API исчерпаны на сегодня.'
+    )
+  }
+
+  if (lastErrorType === 'network') {
+    throw new YandexRetryExhaustedError(
+      '[YandexRetry] Все попытки исчерпаны — нет соединения с Яндекс API.'
     )
   }
 
   throw new YandexUnknownError(
-    '[Yandex] Все 5 попыток исчерпаны. Ошибки сети или неизвестный статус ответа.'
+    '[YandexRetry] Все попытки исчерпаны — неизвестный статус или ошибка ответа.'
   )
 }

@@ -77,7 +77,7 @@ function generateStatsForDay(date: string): YandexDailyStat[] {
   return AD_IDS.map((adId, i) => {
     const impressions = ((base + i * 37 + 200) % 3000) + 100
     const clicks = Math.max(1, Math.floor(impressions * 0.04))
-    const cost = Math.floor(clicks * (150_000 + (base % 100) * 1_000)) // микроны
+    const cost = Math.floor(clicks * (150_000 + (base % 100) * 1_000))
     const avgCpc = clicks > 0 ? Math.floor(cost / clicks) : null
     const avgCpm = Math.floor((cost / impressions) * 1000)
     const ctr = Number(((clicks / impressions) * 100).toFixed(2))
@@ -128,6 +128,19 @@ export default class YandexApiClientMock implements IYandexApiClient {
     await this.delay()
     console.log(`[YandexMock] getAds(adGroupIds: [${adGroupIds.join(', ')}])`)
     return MOCK_ADS.filter((a) => adGroupIds.includes(a.AdGroupId))
+  }
+
+  async getServerTimestamp(): Promise<string> {
+    await this.delay()
+    return '2024-01-01T00:00:00Z'
+  }
+
+  async checkChanges(_lastTimestamp: string): Promise<{
+    Timestamp: string
+    CampaignsStat?: Array<{ CampaignId: number; BorderDate?: string }>
+  }> {
+    await this.delay()
+    return { Timestamp: '2024-01-01T00:00:00Z', CampaignsStat: [] }
   }
 
   async getDailyStats({

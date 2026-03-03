@@ -41,13 +41,13 @@ dev-fresh: up migrate-fresh
 
 # Запуск тестов
 test:
-	cd backend && node --env-file=../.env --env-file=.env ace test
+	cd backend && node --env-file=../.env --env-file=.env ace test $(ARGS)
 
-test-unit:
-	cd backend && node --env-file=../.env --env-file=.env ace test -- --suite=unit
+# test-slow:
+# 	cd backend && node --env-file=../.env --env-file=.env ace test -- --suite=unit $(ARGS)
 
-test-functional:
-	cd backend && node --env-file=../.env --env-file=.env ace test -- --suite=functional
+test-fast:
+	cd backend && node --env-file=../.env --env-file=.env ace test --tags="~@slow"
 
 # =============================================================================
 # Dependencies

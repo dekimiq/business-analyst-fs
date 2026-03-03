@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon'
+import { getNow, getToday } from '#utils/yandex_dates'
 import IntegrationMetadata from '#models/integration_metadata'
 import type { IYandexApiClient } from '../contracts/i_yandex_api_client.js'
 
@@ -21,6 +22,17 @@ export class InvalidDateError extends Error {
   }
 }
 
+export class DateAlreadySetError extends Error {
+  constructor(current: string) {
+    super(
+      `Дата начала синхронизации уже установлена: ${current}. ` +
+        `Изменить её нельзя — это инвалидирует накопленные данные. ` +
+        `Для сброса выполните make migrate-fresh.`
+    )
+    this.name = 'DateAlreadySetError'
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Сервис
 // ---------------------------------------------------------------------------
@@ -28,11 +40,6 @@ export class InvalidDateError extends Error {
 export class YandexSettingsService {
   constructor(private readonly api: IYandexApiClient) {}
 
-  /**
-   * Гарантирует существование записи integration_metadata для Яндекса.
-   * Если её нет — создаёт с нулевыми полями.
-   * Вызывается один раз при старте или перед первым обращением.
-   */
   async ensureMetadataExists(): Promise<IntegrationMetadata> {
     const meta = await IntegrationMetadata.firstOrCreate(
       { source: SOURCE },
@@ -54,15 +61,15 @@ export class YandexSettingsService {
    * @param useDefault - если true, устанавливает today - 3 месяца
    * @param dateIso   - конкретная дата в формате YYYY-MM-DD
    *
-   * Нельзя поставить дату в будущем или раньше 2015-01-01 (Яндекс.Директ не хранит данные старше).
+   * Нельзя поставить дату в будущем или раньше 3 лет (Яндекс.Директ не хранит данные старше).
    */
   async setSyncStartDate(params: { useDefault?: boolean; date?: string }): Promise<DateTime> {
     let syncStartDate: DateTime
 
     if (params.useDefault) {
-      syncStartDate = DateTime.now().minus({ months: DEFAULT_SYNC_MONTHS_BACK }).startOf('day')
+      syncStartDate = getNow().minus({ months: DEFAULT_SYNC_MONTHS_BACK }).startOf('day')
     } else if (params.date) {
-      syncStartDate = DateTime.fromISO(params.date, { zone: 'utc' })
+      syncStartDate = DateTime.fromISO(params.date, { zone: 'Europe/Moscow' }).startOf('day')
 
       if (!syncStartDate.isValid) {
         throw new InvalidDateError(
@@ -70,12 +77,13 @@ export class YandexSettingsService {
         )
       }
 
-      const minDate = DateTime.now().minus({ years: 3 }).startOf('day')
-      const maxDate = DateTime.now().startOf('day')
+      const minDate = getNow().minus({ years: 3 }).startOf('day')
+      const maxDate = getToday()
 
       if (syncStartDate < minDate) {
         throw new InvalidDateError(
-          `Дата начала синхронизации не может быть раньше ${minDate.toFormat('dd-MM-yyyy')}.`
+          `Дата начала синхронизации не может быть раньше ${minDate.toFormat('dd-MM-yyyy')} ` +
+            `(Яндекс.Директ не хранит статистику старше 3 лет).`
         )
       }
       if (syncStartDate > maxDate) {
@@ -87,9 +95,8 @@ export class YandexSettingsService {
 
     const meta = await this.ensureMetadataExists()
 
-    if (meta.syncStatus === 'success') {
-      meta.syncStatus = null
-      meta.currentSyncDate = null
+    if (meta.syncStartDate !== null) {
+      throw new DateAlreadySetError(meta.syncStartDate.toISODate()!)
     }
 
     meta.syncStartDate = syncStartDate
@@ -98,14 +105,6 @@ export class YandexSettingsService {
     return syncStartDate
   }
 
-  /**
-   * Сохраняет токен Яндекс.Директ.
-   *
-   * Flow:
-   *  1. Пинг к API с переданным токеном → проверяем что токен рабочий
-   *  2. Шифруем через AdonisJS encryption (AES-256)
-   *  3. Сохраняем в integration_metadata
-   */
   async saveToken(rawToken: string): Promise<void> {
     const isValid = await this.api.ping()
 

@@ -18,7 +18,7 @@ export default class IntegrationMetadata extends BaseModel {
   declare token: string | null
 
   @column()
-  declare lastTimestamp: number | null
+  declare lastTimestamp: string | null
 
   @column.date()
   declare syncStartDate: DateTime | null
@@ -31,6 +31,9 @@ export default class IntegrationMetadata extends BaseModel {
 
   @column()
   declare syncStatus: 'pending' | 'partial' | 'success' | 'error' | null
+
+  @column()
+  declare structuralSyncPhase: 'campaigns' | 'adGroups' | 'ads' | 'done' | null
 
   @column()
   declare lastError: string | null

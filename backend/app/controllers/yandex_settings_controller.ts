@@ -4,6 +4,7 @@ import {
   YandexSettingsService,
   InvalidTokenError,
   InvalidDateError,
+  DateAlreadySetError,
 } from '#services/yandex_settings_service'
 import { syncDateValidator, tokenValidator } from '#validators/yandex_settings_validator'
 import YandexApiClientService from '#services/yandex_api_client_service'
@@ -65,6 +66,12 @@ export default class YandexSettingsController {
         message: 'Дата точки синхронизации установлена.',
       })
     } catch (error) {
+      if (error instanceof DateAlreadySetError) {
+        return response.conflict({
+          error: 'date_already_set',
+          message: error.message,
+        })
+      }
       if (error instanceof InvalidDateError) {
         return response.unprocessableEntity({
           error: 'invalid_date',

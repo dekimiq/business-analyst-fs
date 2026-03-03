@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon'
+import { getNow, getYesterday } from '#utils/yandex_dates'
 import db from '@adonisjs/lucid/services/db'
 import Campaign from '#models/campaign'
 import AdGroup from '#models/ad_group'
@@ -21,11 +22,6 @@ export type SyncStatus = 'pending' | 'partial' | 'success' | 'error' | null
 // Кастомные ошибки
 // ---------------------------------------------------------------------------
 
-/**
- * Фатальная ошибка — переводит статус в 'error'.
- * Сигнализирует о неконтролируемой ситуации: API умер, DB недоступна,
- * rate limit не обработался и т.д.
- */
 export class YandexFatalError extends Error {
   constructor(
     message: string,
@@ -36,10 +32,6 @@ export class YandexFatalError extends Error {
   }
 }
 
-/**
- * Операция запрещена в текущем статусе синхронизации.
- * Используется контроллером для формирования правильных HTTP-ответов.
- */
 export class SyncLockedError extends Error {
   constructor(public readonly status: SyncStatus) {
     super(`Операция недоступна при статусе синхронизации: ${status}`)
@@ -47,10 +39,6 @@ export class SyncLockedError extends Error {
   }
 }
 
-/**
- * Синхронизация ещё не завершена — данные неполные.
- * Используется аналитическими эндпоинтами когда запрашивают дату > currentSyncDate.
- */
 export class SyncPartialDataError extends Error {
   constructor(public readonly availableUntil: DateTime) {
     super(`Данные доступны только до ${availableUntil.toISODate()} (синхронизация не завершена).`)
@@ -77,6 +65,10 @@ async function getMeta(): Promise<IntegrationMetadata> {
   )
 }
 
+export type DataAvailability = {
+  availableUntil: DateTime | null
+}
+
 // ---------------------------------------------------------------------------
 // Сервис
 // ---------------------------------------------------------------------------
@@ -85,19 +77,10 @@ export class YandexSyncService {
   constructor(private readonly api: IYandexApiClient) {}
 
   // -------------------------------------------------------------------------
-  // PUBLIC: Статус-гейт — проверка разрешена ли операция
+  // PUBLIC: Проверка доступности данных (для аналитических эндпоинтов)
   // -------------------------------------------------------------------------
 
-  /**
-   * Проверяет что данные доступны за запрашиваемый диапазон дат.
-   * Аналитические эндпоинты вызывают это перед запросом к БД.
-   *
-   * Выбрасывает:
-   *  - SyncLockedError(pending)      → 423 Locked
-   *  - SyncPartialDataError(date)    → 206 Partial Content
-   *  - SyncLockedError(null)         → 503 Service Unavailable (синк не настроен)
-   */
-  async assertDataAvailable(requestedDate: DateTime): Promise<void> {
+  async checkDataAvailability(): Promise<DataAvailability> {
     const meta = await getMeta()
 
     if (meta.syncStatus === 'pending') {
@@ -108,30 +91,17 @@ export class YandexSyncService {
       throw new SyncLockedError(null)
     }
 
-    if (requestedDate < meta.currentSyncDate) {
-      throw new SyncPartialDataError(meta.currentSyncDate)
+    if (meta.syncStatus !== 'success') {
+      return { availableUntil: meta.currentSyncDate }
     }
+
+    return { availableUntil: null }
   }
 
   // -------------------------------------------------------------------------
   // PUBLIC: Первичная синхронизация
   // -------------------------------------------------------------------------
 
-  /**
-   * Запускает или ВОЗОБНОВЛЯЕТ первичную выгрузку данных из Яндекс.Директ.
-   *
-   * Разрешено запускать из статусов: null, partial, error
-   * Запрещено из: pending (бросает SyncLockedError), success (бросает SyncLockedError)
-   *
-   * Алгоритм:
-   *  1. Если первый запуск (currentSyncDate == null) — грузим структуру (кампании → группы → объявления)
-   *     Если resume из partial — структура уже в БД, пропускаем (не тратим API-лимиты)
-   *  2. Идём НАЗАД по периодам от startDay до syncStartDate (адаптивные периоды)
-   *  3. После каждого успешного периода сохраняем currentSyncDate (resume point)
-   *  4. При фатальной ошибке → error + lastError
-   *  5. При нефатальной ошибке → partial (можно возобновить с currentSyncDate)
-   *  6. При успехе → success
-   */
   async initialSync(): Promise<void> {
     const meta = await getMeta()
 
@@ -148,8 +118,6 @@ export class YandexSyncService {
       )
     }
 
-    // Запоминаем ДО перехода в pending: есть ли уже прогресс?
-    // currentSyncDate !== null → структура уже загружена на предыдущем запуске
     const isResume = meta.currentSyncDate !== null
 
     meta.syncStatus = 'pending'
@@ -157,6 +125,13 @@ export class YandexSyncService {
     await meta.save()
 
     try {
+      if (meta.lastTimestamp === null) {
+        console.log('[YandexSync] Получаем стартовый Timestamp для отслеживания изменений...')
+        meta.lastTimestamp = await this.api.getServerTimestamp()
+        await meta.save()
+        console.log(`[YandexSync] Стартовый Timestamp сохранён: ${meta.lastTimestamp}`)
+      }
+
       if (isResume) {
         console.log('[YandexSync] Resume: структурные данные уже загружены, пропускаем.')
       } else {
@@ -165,7 +140,7 @@ export class YandexSyncService {
 
       const startDay = meta.currentSyncDate
         ? meta.currentSyncDate.minus({ days: 1 })
-        : DateTime.now().minus({ days: 1 }).startOf('day')
+        : getYesterday()
 
       const endDay = meta.syncStartDate
 
@@ -205,19 +180,6 @@ export class YandexSyncService {
   // PUBLIC: Ежедневная синхронизация
   // -------------------------------------------------------------------------
 
-  /**
-   * Подтягивает статистику за вчерашний день.
-   *
-   * Разрешено из: success, partial, error (manual trigger)
-   * Запрещено из: pending (бросает SyncLockedError)
-   *
-   * Логика при PARTIAL:
-   *  1. Сначала синхронизируем вчера (не высаживаем лимиты повтором)
-   *  2. Потом продолжаем initialSync (возобновляем с currentSyncDate)
-   *
-   * Это гарантирует что ежедневные данные всегда актуальны,
-   * а initial sync догоняет исторические данные постепенно.
-   */
   async dailySync(): Promise<void> {
     const meta = await getMeta()
 
@@ -225,25 +187,68 @@ export class YandexSyncService {
       throw new SyncLockedError('pending')
     }
 
-    const yesterday = DateTime.now().minus({ days: 1 }).startOf('day')
+    const lastTimestamp = meta.lastTimestamp || (await this.api.getServerTimestamp())
+    console.log(`[YandexSync] Ежедневная синхронизация. Проверка изменений с: ${lastTimestamp}`)
 
-    console.log(`[YandexSync] Ежедневная синхронизация за ${yesterday.toISODate()}`)
+    let newTimestamp: string
+    let borderDateStr: string | undefined
 
     try {
-      await this.syncDailyStatsForSingleDay(yesterday)
+      const changes = await this.api.checkChanges(lastTimestamp)
+      newTimestamp = changes.Timestamp
+
+      if (changes.CampaignsStat && changes.CampaignsStat.length > 0) {
+        const borderDates = changes.CampaignsStat.map((c) => c.BorderDate).filter(
+          (d): d is string => !!d
+        )
+
+        if (borderDates.length > 0) {
+          borderDates.sort()
+          borderDateStr = borderDates[0]
+        }
+      }
     } catch (error) {
       if (error instanceof YandexAuthError) {
         meta.syncStatus = 'error'
         meta.lastError = `token_error: ${(error as YandexAuthError).message}`
         await meta.save()
-        console.error('[YandexSync] ✗ Токен невалиден во время ежедневной синхронизации.')
-        throw error
+        console.error('[YandexSync] ✗ Токен невалиден во время проверки изменений.')
       }
       throw error
     }
 
-    meta.lastSyncAt = DateTime.now()
-    await meta.save()
+    const yesterday = getYesterday()
+    let dateFrom: DateTime
+    const dateTo: DateTime = yesterday
+
+    if (borderDateStr) {
+      dateFrom = DateTime.fromISO(borderDateStr, { zone: 'Europe/Moscow' }).startOf('day')
+      console.log(
+        `[YandexSync] Найдены изменения (BorderDate: ${borderDateStr}). Загрузка периода ${dateFrom.toISODate()} - ${dateTo.toISODate()}`
+      )
+    } else {
+      dateFrom = getNow().minus({ days: 3 }).startOf('day')
+      console.log(
+        `[YandexSync] Изменений нет (BorderDate нет). Упреждающая загрузка периода ${dateFrom.toISODate()} - ${dateTo.toISODate()}`
+      )
+    }
+
+    if (dateFrom > dateTo) {
+      dateFrom = dateTo
+    }
+
+    try {
+      await this.syncDailyStatsForPeriodUpsert(dateFrom, dateTo)
+      meta.lastTimestamp = newTimestamp
+      meta.lastSyncAt = getNow()
+      await meta.save()
+      console.log(
+        `[YandexSync] Ежедневная синхронизация успешно завершена. Новый Timestamp сохранено: ${newTimestamp}`
+      )
+    } catch (error) {
+      console.error('[YandexSync] ✗ Ошибка во время загрузки статистики.')
+      throw error
+    }
 
     if (meta.syncStatus === 'partial') {
       console.log('[YandexSync] Статус partial — продолжаем initialSync после ежедневной...')
@@ -255,11 +260,6 @@ export class YandexSyncService {
   // PUBLIC: Возобновление из error-статуса (ручной триггер)
   // -------------------------------------------------------------------------
 
-  /**
-   * Ручное возобновление из статуса error.
-   * Переводит error → partial → запускает initialSync.
-   * После ежедневного dailySync для актуальности.
-   */
   async continueFromError(): Promise<void> {
     const meta = await getMeta()
 
@@ -279,90 +279,108 @@ export class YandexSyncService {
   // -------------------------------------------------------------------------
 
   private async syncStructuralData(): Promise<void> {
-    console.log('[YandexSync] Синхронизация структурных данных...')
+    console.log('[YandexSync] Синхронизация структурных данных (с отслеживанием прогресса)...')
+    const meta = await getMeta()
 
-    await db.transaction(async (trx) => {
-      // --- Campaigns ---
-      const campaigns = await this.api.getCampaigns()
-      console.log(`[YandexSync] Получено кампаний: ${campaigns.length}`)
+    let phase = meta.structuralSyncPhase || 'campaigns'
 
-      for (const c of campaigns) {
-        await Campaign.updateOrCreate(
-          { source: SOURCE, campaignId: c.Id },
-          { name: c.Name, type: c.Type ?? null, status: c.Status ?? null, state: c.State ?? null },
-          { client: trx }
-        )
-      }
+    // --- Campaigns ---
+    if (phase === 'campaigns') {
+      await db.transaction(async (trx) => {
+        const campaigns = await this.api.getCampaigns()
+        console.log(`[YandexSync] Получено кампаний: ${campaigns.length}`)
 
-      // --- AdGroups ---
-      const campaignIds = campaigns.map((c) => c.Id)
-      const adGroups = await this.api.getAdGroups(campaignIds)
-      console.log(`[YandexSync] Получено групп объявлений: ${adGroups.length}`)
+        for (const c of campaigns) {
+          await Campaign.updateOrCreate(
+            { source: SOURCE, campaignId: c.Id },
+            {
+              name: c.Name,
+              type: c.Type ?? null,
+              status: c.Status ?? null,
+              state: c.State ?? null,
+            },
+            { client: trx }
+          )
+        }
+      })
+      meta.structuralSyncPhase = 'adGroups'
+      await meta.save()
+      phase = 'adGroups'
+    }
 
-      const campaignRecords = await Campaign.query({ client: trx })
-        .whereIn('campaign_id', campaignIds)
-        .where('source', SOURCE)
+    // --- AdGroups ---
+    if (phase === 'adGroups') {
+      await db.transaction(async (trx) => {
+        const campaignRecords = await Campaign.query({ client: trx }).where('source', SOURCE)
+        const campaignIds = campaignRecords.map((c) => Number(c.campaignId))
 
-      const campaignIdMap = new Map(campaignRecords.map((c) => [c.campaignId, c.id]))
+        if (campaignIds.length > 0) {
+          const adGroups = await this.api.getAdGroups(campaignIds)
+          console.log(`[YandexSync] Получено групп объявлений: ${adGroups.length}`)
 
-      for (const g of adGroups) {
-        const internalCampaignId = campaignIdMap.get(g.CampaignId)
-        if (!internalCampaignId) continue
+          const campaignIdMap = new Map(campaignRecords.map((c) => [Number(c.campaignId), c.id]))
 
-        await AdGroup.updateOrCreate(
-          { source: SOURCE, groupId: g.Id },
-          { name: g.Name, campaignId: internalCampaignId },
-          { client: trx }
-        )
-      }
+          for (const g of adGroups) {
+            const internalCampaignId = campaignIdMap.get(g.CampaignId)
+            if (!internalCampaignId) continue
 
-      // --- Ads ---
-      const adGroupIds = adGroups.map((g) => g.Id)
-      const ads = await this.api.getAds(adGroupIds)
-      console.log(`[YandexSync] Получено объявлений: ${ads.length}`)
+            await AdGroup.updateOrCreate(
+              { source: SOURCE, groupId: g.Id },
+              { name: g.Name, campaignId: internalCampaignId },
+              { client: trx }
+            )
+          }
+        } else {
+          console.log(`[YandexSync] Нет кампаний для загрузки групп объявлений.`)
+        }
+      })
+      meta.structuralSyncPhase = 'ads'
+      await meta.save()
+      phase = 'ads'
+    }
 
-      const adGroupRecords = await AdGroup.query({ client: trx })
-        .whereIn('group_id', adGroupIds)
-        .where('source', SOURCE)
+    // --- Ads ---
+    if (phase === 'ads') {
+      await db.transaction(async (trx) => {
+        const adGroupRecords = await AdGroup.query({ client: trx }).where('source', SOURCE)
+        const adGroupIds = adGroupRecords.map((g) => Number(g.groupId))
 
-      const adGroupIdMap = new Map(adGroupRecords.map((g) => [g.groupId, g.id]))
+        if (adGroupIds.length > 0) {
+          const ads = await this.api.getAds(adGroupIds)
+          console.log(`[YandexSync] Получено объявлений: ${ads.length}`)
 
-      for (const a of ads) {
-        const internalGroupId = adGroupIdMap.get(a.AdGroupId)
-        if (!internalGroupId) continue
+          const adGroupIdMap = new Map(adGroupRecords.map((g) => [Number(g.groupId), g.id]))
 
-        await Ad.updateOrCreate(
-          { source: SOURCE, adId: a.Id },
-          {
-            groupId: internalGroupId,
-            title: a.TextAd?.Title ?? null,
-            text: a.TextAd?.Text ?? null,
-          },
-          { client: trx }
-        )
-      }
-    })
+          for (const a of ads) {
+            const internalGroupId = adGroupIdMap.get(a.AdGroupId)
+            if (!internalGroupId) continue
 
-    console.log('[YandexSync] Структурные данные синхронизированы.')
+            await Ad.updateOrCreate(
+              { source: SOURCE, adId: a.Id },
+              {
+                groupId: internalGroupId,
+                title: a.TextAd?.Title ?? null,
+                text: a.TextAd?.Text ?? null,
+              },
+              { client: trx }
+            )
+          }
+        } else {
+          console.log(`[YandexSync] Нет групп для загрузки объявлений.`)
+        }
+      })
+      meta.structuralSyncPhase = 'done'
+      await meta.save()
+      phase = 'done'
+    }
+
+    console.log('[YandexSync] Структурные данные успешно синхронизированы.')
   }
 
   // -------------------------------------------------------------------------
   // PRIVATE: Статистика по дням (адаптивная загрузка по периодам)
   // -------------------------------------------------------------------------
 
-  /**
-   * Обходит историю назад от startDay до endDay включительно.
-   *
-   * Стратегия адаптивных периодов:
-   *   - Сначала пробуем загрузить за 30 дней одним запросом
-   *   - При YandexRetryExhaustedError (error 152) дробим: 30→14→7→3
-   *   - Если 3 дня не пошли — бросаем ошибку (вышестоящий catch → partial)
-   *   - Другие ошибки (YandexAuthError, YandexUnknownError) пробрасываем сразу
-   *
-   * После каждого успешно загруженного периода:
-   *   - Сохраняем currentSyncDate = начало периода (resume point)
-   *   - Двигаемся к следующему периоду
-   */
   private async syncDailyStatsBackwards(
     startDay: DateTime,
     endDay: DateTime,
@@ -427,11 +445,6 @@ export class YandexSyncService {
     }
   }
 
-  /**
-   * Загружает статистику за диапазон [dateFrom, dateTo] и сохраняет в БД.
-   * В отличие от syncDailyStatsForSingleDay — работает с произвольным диапазоном.
-   * Конвертирует микроны → рубли (/ 1_000_000).
-   */
   private async syncDailyStatsForPeriod(dateFrom: DateTime, dateTo: DateTime): Promise<void> {
     const stats = await this.api.getDailyStats({ dateFrom, dateTo })
 
@@ -439,14 +452,14 @@ export class YandexSyncService {
 
     const yandexAdIds = [...new Set(stats.map((s) => s.AdId))]
     const adRecords = await Ad.query().whereIn('ad_id', yandexAdIds).where('source', SOURCE)
-    const adIdMap = new Map(adRecords.map((a) => [a.adId, a.id]))
+    const adIdMap = new Map(adRecords.map((a) => [Number(a.adId), a.id]))
 
     await db.transaction(async (trx) => {
       for (const stat of stats) {
         const internalAdId = adIdMap.get(stat.AdId)
         if (!internalAdId) continue
 
-        const statDate = DateTime.fromISO(stat.Date)
+        const statDate = DateTime.fromISO(stat.Date, { zone: 'Europe/Moscow' }).startOf('day')
 
         await DailyStat.updateOrCreate(
           { adId: internalAdId, date: statDate },
@@ -464,11 +477,7 @@ export class YandexSyncService {
     })
   }
 
-  /**
-   * Запрашивает статистику за один день и сохраняет в БД.
-   * Используется dailySync (вчерашний день — всегда 1 день, адаптация не нужна).
-   */
-  private async syncDailyStatsForSingleDay(day: DateTime): Promise<void> {
-    await this.syncDailyStatsForPeriod(day, day)
+  private async syncDailyStatsForPeriodUpsert(dateFrom: DateTime, dateTo: DateTime): Promise<void> {
+    await this.syncDailyStatsForPeriod(dateFrom, dateTo)
   }
 }
