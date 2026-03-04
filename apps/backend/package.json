@@ -1,0 +1,29 @@
+{
+  "name": "@project/backend",
+  "type": "module",
+  "scripts": {
+    "dev": "node ace serve --watch",
+    "build": "node ace build",
+    "start": "node build/bin/server.js",
+    "migration:run": "node ace migration:run",
+    "migration:rollback": "node ace migration:rollback",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@adonisjs/core": "^6.14.0",
+    "@adonisjs/lucid": "^21.3.0",
+    "@adonisjs/redis": "^9.1.0",
+    "bullmq": "^5.34.0",
+    "@vinejs/vine": "^2.1.0",
+    "axios": "^1.7.9",
+    "adonis-autoswagger": "^3.x",
+    "@project/env": "*",
+    "@project/shared": "*"
+  },
+  "devDependencies": {
+    "@japa/runner": "^3.1.4",
+    "@japa/api-client": "^2.0.3",
+    "@japa/assert": "^3.0.0",
+    "typescript": "^5.7.2"
+  }
+}

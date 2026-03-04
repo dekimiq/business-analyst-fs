@@ -1,0 +1,56 @@
+import { config } from 'dotenv'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
+import { z } from 'zod'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+// Поднимаемся из packages/env/src/ до корня монорепо
+config({ path: resolve(__dirname, '../../../.env') })
+
+const schema = z.object({
+  TZ: z.string().default('Europe/Moscow'),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  DB_HOST: z.string().default('postgres'),
+  DB_PORT: z.coerce.number().default(5432),
+  DB_NAME: z.string().default('analytics'),
+  DB_USER_BACKEND: z.string().default('backend_user'),
+  DB_PASSWORD_BACKEND: z.string().default('secret_backend'),
+  DB_USER_BOT: z.string().default('bot_user'),
+  DB_PASSWORD_BOT: z.string().default('secret_bot'),
+  DB_USER_AI: z.string().default('ai_user'),
+  DB_PASSWORD_AI: z.string().default('secret_ai'),
+  DB_USER_CRON: z.string().default('cron_user'),
+  DB_PASSWORD_CRON: z.string().default('secret_cron'),
+  DB_USER_BOT_NOTIFICATION: z.string().default('bot_notification_user'),
+  DB_PASSWORD_BOT_NOTIFICATION: z.string().default('secret_notification'),
+  REDIS_HOST: z.string().default('redis'),
+  REDIS_PORT: z.coerce.number().default(6379),
+  REDIS_DB_BACKEND: z.coerce.number().default(0),
+  REDIS_DB_BOT: z.coerce.number().default(1),
+  YANDEX_CLIENT_ID: z.string().optional(),
+  YANDEX_CLIENT_SECRET: z.string().optional(),
+  YANDEX_TOKEN: z.string().optional(),
+  AMOCRM_DOMAIN: z.string().optional(),
+  AMOCRM_CLIENT_ID: z.string().optional(),
+  AMOCRM_CLIENT_SECRET: z.string().optional(),
+  AMOCRM_TOKEN: z.string().optional(),
+  OPENROUTER_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  MAX_BOT_TOKEN: z.string().optional(),
+  BACKEND_API_URL: z.string().default('http://backend:3333'),
+})
+
+const parsed = schema.safeParse(process.env)
+
+if (!parsed.success) {
+  console.error('❌ ENV validation failed:')
+  console.error(parsed.error.flatten().fieldErrors)
+  process.exit(1)
+}
+
+export const env = parsed.data
+export type Env = typeof env
