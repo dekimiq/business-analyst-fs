@@ -8,7 +8,10 @@ export interface IYandexApiClient {
   getAds(adGroupIds: number[]): Promise<YandexAd[]>
   getDailyStats(params: { dateFrom: DateTime; dateTo: DateTime }): Promise<YandexDailyStat[]>
   getServerTimestamp(): Promise<string>
-  checkChanges(lastTimestamp: string): Promise<{
+  checkChanges(
+    lastTimestamp: string,
+    campaignIds?: number[]
+  ): Promise<{
     Timestamp: string
     CampaignsStat?: Array<{ CampaignId: number; BorderDate?: string }>
   }>

@@ -107,6 +107,7 @@ export class YandexSettingsService {
 
   async saveToken(rawToken: string): Promise<void> {
     const isValid = await this.api.ping()
+    console.log(`[DEBUG]/ isValid: ${isValid}`)
 
     if (!isValid) {
       throw new InvalidTokenError()

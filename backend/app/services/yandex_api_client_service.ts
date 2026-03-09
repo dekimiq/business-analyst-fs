@@ -1,4 +1,6 @@
 import axios, { AxiosInstance } from 'axios'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { DateTime } from 'luxon'
 import { getNow } from '#utils/yandex_dates'
 import { withYandexRetry } from '../utils/yandex_retry.js'
@@ -24,11 +26,100 @@ export default class YandexApiClientService implements IYandexApiClient {
   constructor(token: string) {
     this.client = axios.create({
       baseURL: 'https://api.direct.yandex.com/json/v5',
+      proxy: false, // Отключаем использование системного прокси, так как он (127.0.0.1:10808) отбивает запросы к Яндексу с 503 ошибкой
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept-Language': 'ru',
       },
     })
+
+    // --- TEMPORARY INTERCEPTOR FOR MOCKS ---
+    const dumpData = (config: any, data: any, isError: boolean) => {
+      try {
+        const urlObj = new URL(
+          config?.url || '',
+          config?.baseURL || 'https://api.direct.yandex.com/json/v5'
+        )
+        const endpoint = urlObj.pathname.split('/').pop() || 'unknown'
+
+        const mocksDir = path.join(process.cwd(), '.mocks')
+        if (!fs.existsSync(mocksDir)) {
+          fs.mkdirSync(mocksDir, { recursive: true })
+        }
+
+        const timestamp = Date.now()
+        const status = isError ? 'error' : 'success'
+        let filename = `${timestamp}_${endpoint}_${status}.json`
+
+        let requestData = config?.data
+        if (typeof config?.data === 'string') {
+          try {
+            requestData = JSON.parse(config.data)
+          } catch (e) {
+            console.error(e)
+          }
+        }
+
+        const safeHeaders = { ...config?.headers }
+        if (safeHeaders['Authorization'] || safeHeaders['authorization']) {
+          const authKey = safeHeaders['Authorization'] ? 'Authorization' : 'authorization'
+          safeHeaders[authKey] = 'Bearer ***CENSORED***'
+        }
+
+        const payload = {
+          _request: {
+            method: config?.method,
+            url: config?.url,
+            headers: safeHeaders,
+            data: requestData,
+            params: config?.params,
+          },
+          response: data || 'No response data provided',
+        }
+
+        let content = ''
+        try {
+          content = typeof data === 'string' && !isError ? data : JSON.stringify(payload, null, 2)
+        } catch (e) {
+          // Fallback if there are circular references
+          content = String(data)
+          console.error(e)
+        }
+
+        if (
+          !isError &&
+          (endpoint === 'reports' || (typeof data === 'string' && data.includes('\t')))
+        ) {
+          filename = `${timestamp}_${endpoint}.tsv`
+          content = data
+          fs.writeFileSync(
+            path.join(mocksDir, `${timestamp}_${endpoint}_req.json`),
+            JSON.stringify(payload._request, null, 2)
+          )
+        }
+
+        fs.writeFileSync(path.join(mocksDir, filename), content || '{}')
+        console.log(`[MockDump] Saved ${filename}`)
+      } catch (e) {
+        console.error('[MockDump] Failed to dump mock', e)
+      }
+    }
+
+    this.client.interceptors.response.use(
+      (response) => {
+        dumpData(response.config, response.data, false)
+        return response
+      },
+      (error) => {
+        if (error.response) {
+          dumpData(error.config, error.response.data, true)
+        } else {
+          dumpData(error.config, { message: error.message, code: error.code }, true)
+        }
+        return Promise.reject(error)
+      }
+    )
+    // ---------------------------------------
   }
 
   // ---------------------------------------------------------------------------
@@ -157,7 +248,8 @@ export default class YandexApiClientService implements IYandexApiClient {
             method: 'get',
             params: {
               SelectionCriteria: { AdGroupIds: chunk },
-              FieldNames: ['Id', 'AdGroupId', 'Type', 'State', 'Status', 'TextAd'],
+              FieldNames: ['Id', 'AdGroupId', 'Type', 'State', 'Status'],
+              TextAdFieldNames: ['Title', 'Text'],
               Page: page,
             },
           }),
@@ -199,16 +291,7 @@ export default class YandexApiClientService implements IYandexApiClient {
               DateFrom: from,
               DateTo: to,
             },
-            FieldNames: [
-              'Date',
-              'AdId',
-              'Impressions',
-              'Clicks',
-              'Cost',
-              'Ctr',
-              'AvgCpc',
-              'AvgCpm',
-            ],
+            FieldNames: ['Date', 'AdId', 'Impressions', 'Clicks', 'Cost', 'Ctr', 'AvgCpc'],
             ReportName: `daily_stats_${from}_${to}_${Date.now()}`,
             ReportType: 'AD_PERFORMANCE_REPORT',
             DateRangeType: 'CUSTOM_DATE',
@@ -246,17 +329,26 @@ export default class YandexApiClientService implements IYandexApiClient {
     }
   }
 
-  async checkChanges(lastTimestamp: string): Promise<{
+  async checkChanges(
+    lastTimestamp: string,
+    campaignIds?: number[]
+  ): Promise<{
     Timestamp: string
     CampaignsStat?: Array<{ CampaignId: number; BorderDate?: string }>
   }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const params: any = { Timestamp: lastTimestamp }
+
+    if (campaignIds && campaignIds.length > 0) {
+      params.FieldNames = ['CampaignsStat']
+      // API Limit: max 10,000 campaigns
+      params.CampaignIds = campaignIds.slice(0, 10000)
+    }
+
     const result = await withYandexRetry(() =>
       this.client.post('/changes', {
         method: 'check',
-        params: {
-          Timestamp: lastTimestamp,
-          FieldNames: ['CampaignsStat'],
-        },
+        params,
       })
     )
 
@@ -286,16 +378,18 @@ export default class YandexApiClientService implements IYandexApiClient {
       .map((line) => {
         const cols = line.split('\t')
         const avgCpcRaw = cols[idx('AvgCpc')]
+        const impressions = Number(cols[idx('Impressions')])
+        const cost = Number(cols[idx('Cost')])
 
         return {
           Date: cols[idx('Date')],
           AdId: Number(cols[idx('AdId')]),
-          Impressions: Number(cols[idx('Impressions')]),
+          Impressions: impressions,
           Clicks: Number(cols[idx('Clicks')]),
-          Cost: Number(cols[idx('Cost')]),
+          Cost: cost,
           Ctr: Number(cols[idx('Ctr')]),
           AvgCpc: avgCpcRaw === '--' || avgCpcRaw === null ? null : Number(avgCpcRaw),
-          AvgCpm: Number(cols[idx('AvgCpm')]),
+          AvgCpm: impressions > 0 ? Math.floor((cost / impressions) * 1000) : 0,
         }
       })
   }

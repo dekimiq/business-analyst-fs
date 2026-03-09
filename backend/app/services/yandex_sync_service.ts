@@ -194,7 +194,10 @@ export class YandexSyncService {
     let borderDateStr: string | undefined
 
     try {
-      const changes = await this.api.checkChanges(lastTimestamp)
+      const campaignRecords = await Campaign.query().where('source', SOURCE)
+      const campaignIds = campaignRecords.map((c) => Number(c.campaignId))
+
+      const changes = await this.api.checkChanges(lastTimestamp, campaignIds)
       newTimestamp = changes.Timestamp
 
       if (changes.CampaignsStat && changes.CampaignsStat.length > 0) {

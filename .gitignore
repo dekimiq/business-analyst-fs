@@ -182,3 +182,4 @@ node_modules
 **/.parcel-cache
 **/.vite-cache
 **.terser-cache
+**/.mocks

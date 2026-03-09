@@ -109,6 +109,7 @@ export default class YandexSettingsController {
       await service.saveToken(payload.token)
       return response.ok({ message: 'Токен успешно сохранён.' })
     } catch (error) {
+      console.log(error)
       if (error instanceof InvalidTokenError) {
         return response.unprocessableEntity({
           error: 'invalid_token',

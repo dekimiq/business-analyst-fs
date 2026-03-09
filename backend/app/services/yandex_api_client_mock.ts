@@ -135,7 +135,10 @@ export default class YandexApiClientMock implements IYandexApiClient {
     return '2024-01-01T00:00:00Z'
   }
 
-  async checkChanges(_lastTimestamp: string): Promise<{
+  async checkChanges(
+    _lastTimestamp: string,
+    _campaignIds?: number[]
+  ): Promise<{
     Timestamp: string
     CampaignsStat?: Array<{ CampaignId: number; BorderDate?: string }>
   }> {
