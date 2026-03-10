@@ -7,6 +7,144 @@
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
+export class AdGroupSchema extends BaseModel {
+  static $columns = [
+    'campaignId',
+    'createdAt',
+    'groupId',
+    'id',
+    'name',
+    'source',
+    'updatedAt',
+  ] as const
+  $columns = AdGroupSchema.$columns
+  @column()
+  declare campaignId: number | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime | null
+  @column()
+  declare groupId: bigint | number
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare name: string
+  @column()
+  declare source: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class AdSchema extends BaseModel {
+  static $columns = [
+    'adId',
+    'adPlatform',
+    'conditionId',
+    'conditionName',
+    'createdAt',
+    'groupId',
+    'id',
+    'source',
+    'text',
+    'title',
+    'updatedAt',
+  ] as const
+  $columns = AdSchema.$columns
+  @column()
+  declare adId: bigint | number
+  @column()
+  declare adPlatform: string | null
+  @column()
+  declare conditionId: bigint | number | null
+  @column()
+  declare conditionName: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime | null
+  @column()
+  declare groupId: number | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare source: string
+  @column()
+  declare text: string | null
+  @column()
+  declare title: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class CampaignSchema extends BaseModel {
+  static $columns = [
+    'campaignId',
+    'createdAt',
+    'id',
+    'name',
+    'source',
+    'state',
+    'status',
+    'type',
+    'updatedAt',
+  ] as const
+  $columns = CampaignSchema.$columns
+  @column()
+  declare campaignId: bigint | number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare name: string
+  @column()
+  declare source: string
+  @column()
+  declare state: string | null
+  @column()
+  declare status: string | null
+  @column()
+  declare type: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class DailyStatSchema extends BaseModel {
+  static $columns = [
+    'adId',
+    'avgCpc',
+    'avgCpm',
+    'clicks',
+    'cost',
+    'createdAt',
+    'ctr',
+    'date',
+    'id',
+    'impressions',
+    'updatedAt',
+  ] as const
+  $columns = DailyStatSchema.$columns
+  @column()
+  declare adId: number | null
+  @column()
+  declare avgCpc: string | null
+  @column()
+  declare avgCpm: string
+  @column()
+  declare clicks: number
+  @column()
+  declare cost: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime | null
+  @column()
+  declare ctr: string
+  @column.date()
+  declare date: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare impressions: number
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
 export class IntegrationMetadatumSchema extends BaseModel {
   static $columns = [
     'createdAt',
@@ -47,4 +185,21 @@ export class IntegrationMetadatumSchema extends BaseModel {
   declare token: string | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
+}
+
+export class SyncLogSchema extends BaseModel {
+  static $columns = ['createdAt', 'id', 'level', 'message', 'metadata', 'source'] as const
+  $columns = SyncLogSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare level: string
+  @column()
+  declare message: string
+  @column()
+  declare metadata: any | null
+  @column()
+  declare source: string
 }
