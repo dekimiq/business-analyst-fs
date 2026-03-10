@@ -66,7 +66,6 @@ export class YandexSyncService implements ISyncService {
     this.logger.info(`Sync started. Current status: ${meta.syncStatus}`)
 
     try {
-      // 1. Initial Sync / Initializing
       if (meta.syncStatus === null || meta.syncStatus === SyncStatus.INITIALIZING) {
         if (meta.syncStatus === null) {
           meta.syncStatus = SyncStatus.INITIALIZING
@@ -93,16 +92,11 @@ export class YandexSyncService implements ISyncService {
         meta.lastSyncAt = DateTime.now()
         await meta.save()
         this.logger.info('Initial sync completed successfully.')
-      }
-      // 2. Daily Sync
-      else if (meta.syncStatus === SyncStatus.SUCCESS) {
+      } else if (meta.syncStatus === SyncStatus.SUCCESS) {
         await this.dailySync(meta)
-      }
-      // 3. Resume from Partial or Error
-      else if (meta.syncStatus === SyncStatus.ERROR || meta.syncStatus === SyncStatus.PARTIAL) {
+      } else if (meta.syncStatus === SyncStatus.ERROR || meta.syncStatus === SyncStatus.PARTIAL) {
         this.logger.info(`Resuming sync from status: ${meta.syncStatus}`)
 
-        // If structural data not finished, sync it
         if (meta.referenceSyncPhase !== ReferenceSyncPhase.DONE) {
           await this.syncStructuralData(meta)
         }

@@ -47,7 +47,7 @@ CREATE USER bot_notification_user WITH PASSWORD 'secret_notification';
 GRANT CONNECT ON DATABASE analytics TO bot_notification_user;
 GRANT USAGE ON SCHEMA bot TO bot_notification_user;
 
--- Create basic users table for Max Bot interaction in the bot schema
+-- Create basic users table for Bot interaction in the bot schema
 CREATE TABLE IF NOT EXISTS bot.users (
     id SERIAL PRIMARY KEY,
     user_id VARCHAR(100) NOT NULL UNIQUE,

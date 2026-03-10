@@ -42,6 +42,12 @@ const schema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   MAX_BOT_TOKEN: z.string().optional(),
   BACKEND_API_URL: z.string().default('http://backend:3333'),
+  PORT: z.coerce.number().default(3333),
+  HOST: z.string().default('0.0.0.0'),
+  LOG_LEVEL: z.string().default('info'),
+  APP_KEY: z.string().optional(),
+  APP_URL: z.string().default('http://localhost:3333'),
+  SESSION_DRIVER: z.enum(['cookie', 'memory', 'database']).default('memory'),
 })
 
 const parsed = schema.safeParse(process.env)

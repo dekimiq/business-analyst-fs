@@ -30,8 +30,6 @@ services:
     depends_on:
       - postgres
       - redis
-    ports:
-      - "3333:3333"
 
   bot-interaction:
     build: ./apps/bot-interaction

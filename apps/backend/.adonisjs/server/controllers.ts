@@ -3,4 +3,9 @@
  * DO NOT EDIT manually
  */
 
-export const controllers = {}
+export const controllers = {
+  sync: {
+    SyncStatus: () => import('#controllers/sync/sync_status_controller'),
+    YandexIntegration: () => import('#controllers/sync/yandex_integration_controller'),
+  },
+}
