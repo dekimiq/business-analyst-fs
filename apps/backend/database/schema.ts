@@ -7,55 +7,44 @@
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
-export class AuthAccessTokenSchema extends BaseModel {
+export class IntegrationMetadatumSchema extends BaseModel {
   static $columns = [
-    'abilities',
     'createdAt',
-    'expiresAt',
-    'hash',
+    'currentSyncDate',
     'id',
-    'lastUsedAt',
-    'name',
-    'tokenableId',
-    'type',
+    'lastError',
+    'lastSyncAt',
+    'lastTimestamp',
+    'referenceSyncPhase',
+    'source',
+    'syncStartDate',
+    'syncStatus',
+    'token',
     'updatedAt',
   ] as const
-  $columns = AuthAccessTokenSchema.$columns
-  @column()
-  declare abilities: string
+  $columns = IntegrationMetadatumSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime | null
-  @column.dateTime()
-  declare expiresAt: DateTime | null
-  @column()
-  declare hash: string
+  @column.date()
+  declare currentSyncDate: DateTime | null
   @column({ isPrimary: true })
   declare id: number
+  @column()
+  declare lastError: string | null
   @column.dateTime()
-  declare lastUsedAt: DateTime | null
+  declare lastSyncAt: DateTime | null
   @column()
-  declare name: string | null
+  declare lastTimestamp: string | null
   @column()
-  declare tokenableId: number
+  declare referenceSyncPhase: string | null
   @column()
-  declare type: string
-  @column.dateTime({ autoCreate: true, autoUpdate: true })
-  declare updatedAt: DateTime | null
-}
-
-export class UserSchema extends BaseModel {
-  static $columns = ['createdAt', 'email', 'fullName', 'id', 'password', 'updatedAt'] as const
-  $columns = UserSchema.$columns
-  @column.dateTime({ autoCreate: true })
-  declare createdAt: DateTime
+  declare source: string
+  @column.date()
+  declare syncStartDate: DateTime | null
   @column()
-  declare email: string
+  declare syncStatus: string | null
   @column()
-  declare fullName: string | null
-  @column({ isPrimary: true })
-  declare id: number
-  @column({ serializeAs: null })
-  declare password: string
+  declare token: string | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
 }

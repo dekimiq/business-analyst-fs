@@ -4,7 +4,6 @@ import app from '@adonisjs/core/services/app'
 import type { Config } from '@japa/runner/types'
 import { pluginAdonisJS } from '@japa/plugin-adonisjs'
 import testUtils from '@adonisjs/core/services/test_utils'
-import { authApiClient } from '@adonisjs/auth/plugins/api_client'
 import { sessionApiClient } from '@adonisjs/session/plugins/api_client'
 import type { Registry } from '../.adonisjs/client/registry/schema.d.ts'
 
@@ -28,7 +27,6 @@ export const plugins: Config['plugins'] = [
   pluginAdonisJS(app),
   apiClient(),
   sessionApiClient(app),
-  authApiClient(app),
 ]
 
 /**

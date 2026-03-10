@@ -5,7 +5,8 @@
     "outDir": "./build",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "declaration": false
+    "declaration": false,
+    "rewriteRelativeImportExtensions": true
   },
   "include": ["**/*"],
   "exclude": ["node_modules", "build"]
