@@ -11,3 +11,18 @@ migrate-fresh:
 # Генерация APP_KEY для бэкенда (AdonisJS)
 generate-key:
 	cd apps/backend && node ace generate:key
+
+# Запуск контейнера
+up:
+	docker compose up -d postgres redis
+
+# Остановка контейнера
+down:
+	docker compose down
+
+# linter & Prettier
+check:
+	npm run check
+
+check-fix:
+	npm run check-fix
