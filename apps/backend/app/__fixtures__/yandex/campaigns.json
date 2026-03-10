@@ -1,0 +1,316 @@
+{
+  "response": {
+    "result": {
+      "Campaigns": [
+        {
+          "Id": 38810726,
+          "Name": "Системная кампания eCompany",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 40422040,
+          "Name": "ya_site1_poisk_region",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 40422049,
+          "Name": "ya_site1_poisk_MskSpb",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 40432140,
+          "Name": "ya_site2_poisk_MskSpb",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 40432144,
+          "Name": "ya_site2_poisk_region",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 40450890,
+          "Name": "ya_2kontur_poisk_region",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 40450896,
+          "Name": "ya_2kontur_poisk_MskSpb",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 40452448,
+          "Name": "ya_1kontur_poisk_MskSpb",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 40452453,
+          "Name": "ya_1kontur_poisk_region",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 41840096,
+          "Name": "тест",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 49502868,
+          "Name": "ya_KNR_poisk_region",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 49738768,
+          "Name": "ya_KNR_RSY_region",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 63056051,
+          "Name": "ya_KNR_Retarget_region",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 80898144,
+          "Name": "ya_KNR_poisk_region авто",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 80898145,
+          "Name": "ya_KNR_RSY_region (копия)",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 81030979,
+          "Name": "ya_KNR_poisk_dnr_lnr",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 81030980,
+          "Name": "ya_KNR_RSY_dnr_lnr",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 85076674,
+          "Name": "ya_KNR_RSY_region (копия)",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 85076675,
+          "Name": "ya_KNR_Retarget_region (копия)",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 85076676,
+          "Name": "ya_KNR_poisk_region авто (копия)",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 85076677,
+          "Name": "ya_KNR_RSY_dnr_lnr (копия)",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 92780501,
+          "Name": "Поиск/ Наружные вещи",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 92782625,
+          "Name": "РСЯ/ Наружные вещи",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 92783159,
+          "Name": "Ретаргет/ Наружные вещи",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 92783171,
+          "Name": "Креативы/ Наружные вещи",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 93933915,
+          "Name": "Quiz_ya_KNR_poisk_region",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 93933922,
+          "Name": "Quiz_ya_KNR_RSY_region",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "ACCEPTED",
+          "State": "ON"
+        },
+        {
+          "Id": 94959632,
+          "Name": "РСЯ - Продажа Вещей - ЛНР и ДНР",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 94959635,
+          "Name": "Поиск - Продажа Вещей - ЛНР и ДНР",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 94959642,
+          "Name": "Поиск - Квиз - ЛНР и ДНР",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 95679537,
+          "Name": "ya_KNR_RSY_region (клики)",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 95679560,
+          "Name": "ya_KNR_RSY_region (копия 2)",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 96225975,
+          "Name": "РСЯ - База контактов - РФ",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 98384617,
+          "Name": "Поиск - Продажа Вещей - Автотаргет",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 99318670,
+          "Name": "ТГ - Наружные вещи - РФ",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "ACCEPTED",
+          "State": "ON"
+        },
+        {
+          "Id": 99495717,
+          "Name": "Поиск - Новый квиз - РФ",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 99496712,
+          "Name": "РСЯ - Новый квиз - РФ",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 108880224,
+          "Name": "Поиск - Бренд",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 111760181,
+          "Name": "Поиск - Авто - РФ",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "MODERATION",
+          "State": "ARCHIVED"
+        },
+        {
+          "Id": 111760190,
+          "Name": "РСЯ - Авто - РФ (71 000)",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "ACCEPTED",
+          "State": "ON"
+        },
+        {
+          "Id": 112554784,
+          "Name": "Поиск - Целевые - РФ",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "ACCEPTED",
+          "State": "ON"
+        },
+        {
+          "Id": 112609287,
+          "Name": "РСЯ - Конкуренты - РФ (27 000)",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "ACCEPTED",
+          "State": "ON"
+        },
+        {
+          "Id": 112646038,
+          "Name": "РСЯ - Околоцелевые - РФ (30 000)",
+          "Type": "TEXT_CAMPAIGN",
+          "Status": "ACCEPTED",
+          "State": "ON"
+        },
+        {
+          "Id": 119085950,
+          "Name": "Медийная кампания №47 от 01-01-2025",
+          "Type": "CPM_BANNER_CAMPAIGN",
+          "Status": "DRAFT",
+          "State": "OFF"
+        }
+      ]
+    }
+  }
+}
