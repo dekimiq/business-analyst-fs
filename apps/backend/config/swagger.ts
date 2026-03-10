@@ -1,5 +1,5 @@
 const swagger = {
-  path: `${__dirname}/../`,
+  path: new URL('../', import.meta.url).pathname,
   title: 'Business Analyst API',
   version: '1.0.0',
   description: 'REST API для управления синхронизацией данных Яндекс.Директ и AmoCRM',
