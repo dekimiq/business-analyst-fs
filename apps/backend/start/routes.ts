@@ -30,7 +30,9 @@ router
     router
       .group(() => {
         router.get('/status', [YandexIntegrationController, 'status'])
-        router.patch('/settings', [YandexIntegrationController, 'updateSettings'])
+        router.post('/setup', [YandexIntegrationController, 'setupSettings'])
+        router.post('/token', [YandexIntegrationController, 'updateToken'])
+        router.post('/sync', [YandexIntegrationController, 'sync'])
       })
       .prefix('/yandex')
   })
