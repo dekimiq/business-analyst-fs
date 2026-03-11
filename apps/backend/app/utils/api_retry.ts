@@ -1,37 +1,6 @@
 import { isAxiosError } from 'axios'
 import type { IRetryConfig } from '@project/shared'
-
-/**
- * Exception thrown when an API authentication error occurs (401 or 403).
- */
-export class ApiAuthError extends Error {
-  constructor(message: string = 'API Authentication Error') {
-    super(message)
-    this.name = 'ApiAuthError'
-  }
-}
-
-/**
- * Exception thrown when the number of retry attempts has been exhausted.
- */
-export class ApiRetryExhaustedError extends Error {
-  constructor(message: string = 'API Retry Limit Exhausted') {
-    super(message)
-    this.name = 'ApiRetryExhaustedError'
-  }
-}
-
-/**
- * Exception thrown when a fatal API error occurs (e.g., specified fatal HTTP status codes).
- */
-export class ApiFatalError extends Error {
-  public status?: number
-  constructor(message: string, status?: number) {
-    super(message)
-    this.name = 'ApiFatalError'
-    this.status = status
-  }
-}
+import { ApiAuthError, ApiFatalError, ApiRetryExhaustedError } from '#exceptions/api_exceptions'
 
 export class ApiRetryService {
   private static async delay(ms: number) {
