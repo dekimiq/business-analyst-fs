@@ -34,7 +34,7 @@ export class YandexApiClient implements IYandexApiClient {
   constructor(token: string) {
     this.client = axios.create({
       baseURL: 'https://api.direct.yandex.com/json/v5',
-      proxy: false, // Отключаем системный прокси — Яндекс недоступен через него
+      proxy: false,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept-Language': 'ru',
@@ -182,34 +182,49 @@ export class YandexApiClient implements IYandexApiClient {
     const from = dateFrom.toISODate()!
     const to = dateTo.toISODate()!
 
-    const response = await ApiRetryService.call(yandexRetryConfig, () =>
-      this.client.post<string>(
-        '/reports',
-        {
-          params: {
-            SelectionCriteria: { DateFrom: from, DateTo: to },
-            FieldNames: ['Date', 'AdId', 'Impressions', 'Clicks', 'Cost', 'Ctr', 'AvgCpc'],
-            ReportName: `daily_${from}_${to}_${Date.now()}`,
-            ReportType: 'AD_PERFORMANCE_REPORT',
-            DateRangeType: 'CUSTOM_DATE',
-            Format: 'TSV',
-            IncludeVAT: 'YES',
-            IncludeDiscount: 'NO',
-          },
-        },
-        {
-          headers: {
-            returnMoneyInMicros: 'true',
-            skipReportHeader: 'true',
-            skipColumnHeader: 'false',
-            skipReportSummary: 'true',
-          },
-          responseType: 'text',
-        }
-      )
-    )
+    const allStats: YandexDailyStat[] = []
+    let offset = 0
+    const limit = 1_000_000
 
-    return this.parseTsvReport(response.data)
+    while (true) {
+      const response = await ApiRetryService.call(yandexRetryConfig, () =>
+        this.client.post<string>(
+          '/reports',
+          {
+            params: {
+              SelectionCriteria: { DateFrom: from, DateTo: to },
+              FieldNames: ['Date', 'AdId', 'Impressions', 'Clicks', 'Cost', 'Ctr', 'AvgCpc'],
+              ReportName: `daily_${from}_${to}_${Date.now()}_${offset}`,
+              ReportType: 'AD_PERFORMANCE_REPORT',
+              DateRangeType: 'CUSTOM_DATE',
+              Format: 'TSV',
+              IncludeVAT: 'YES',
+              IncludeDiscount: 'NO',
+              Page: { Limit: limit, Offset: offset },
+            },
+          },
+          {
+            headers: {
+              returnMoneyInMicros: 'true',
+              skipReportHeader: 'true',
+              skipColumnHeader: 'false',
+              skipReportSummary: 'true',
+            },
+            responseType: 'text',
+          }
+        )
+      )
+
+      const chunkStats = this.parseTsvReport(response.data)
+      allStats.push(...chunkStats)
+
+      const nextOffset = response.headers['limitedby']
+      if (!nextOffset) break
+
+      offset = Number(nextOffset)
+    }
+
+    return allStats
   }
 
   // ---------------------------------------------------------------------------
