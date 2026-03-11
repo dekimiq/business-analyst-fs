@@ -29,8 +29,8 @@ async function setupMeta(overrides: Partial<IntegrationMetadata> = {}) {
     overrides.syncStartDate !== undefined
       ? overrides.syncStartDate
       : DateTime.now().minus({ days: 30 }).startOf('day')
-  meta.currentSyncDate = overrides.currentSyncDate ?? null
-  meta.lastSyncAt = overrides.lastSyncAt ?? null
+  meta.syncedUntil = overrides.syncedUntil ?? null
+  meta.lastSuccessSyncAt = overrides.lastSuccessSyncAt ?? null
   meta.syncStatus = overrides.syncStatus ?? null
   meta.lastError = overrides.lastError ?? null
   await meta.save()
@@ -42,7 +42,7 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
     try {
       await db.rawQuery('SELECT 1')
     } catch (e) {
-      console.error('[TEST DEBUG] DB Connection FAILED:', e)
+      console.error('[TEST] DB Connection FAILED:', e)
     }
   })
 

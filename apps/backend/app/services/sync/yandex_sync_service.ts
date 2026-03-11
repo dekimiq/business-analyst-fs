@@ -45,18 +45,14 @@ export class YandexSyncService implements ISyncService {
   async getDataAvailability(): Promise<{ availableUntil: 'none' | 'all' | string }> {
     const meta = await this.getMeta()
 
-    if (!meta.syncStatus || meta.syncStatus === SyncStatus.INITIALIZING) {
+    if (!meta.syncStatus) {
       return { availableUntil: 'none' }
     }
 
-    const isInterruptedOrPending = [
-      SyncStatus.PENDING,
-      SyncStatus.ERROR,
-      SyncStatus.PARTIAL,
-    ].includes(meta.syncStatus)
+    const isInterrupted = [SyncStatus.ERROR, SyncStatus.PARTIAL].includes(meta.syncStatus)
 
-    if (isInterruptedOrPending && meta.currentSyncDate) {
-      return { availableUntil: meta.currentSyncDate.toISODate()! }
+    if (isInterrupted && meta.syncedUntil) {
+      return { availableUntil: meta.syncedUntil.toISODate()! }
     }
 
     return { availableUntil: 'all' }
@@ -76,12 +72,7 @@ export class YandexSyncService implements ISyncService {
         throw new MetaSyncStartDateUnavailableError()
       }
 
-      if (meta.syncStatus === null || meta.syncStatus === SyncStatus.INITIALIZING) {
-        if (meta.syncStatus === null) {
-          meta.syncStatus = SyncStatus.INITIALIZING
-          await meta.save()
-        }
-
+      if (meta.syncStatus === null) {
         // --- Structural Data ---
         if (meta.referenceSyncPhase !== ReferenceSyncPhase.DONE) {
           await db.transaction(async (trx) => {
@@ -104,14 +95,14 @@ export class YandexSyncService implements ISyncService {
           }
         }
 
-        const startDay = meta.currentSyncDate
-          ? meta.currentSyncDate.minus({ days: 1 })
+        const startDay = meta.syncedUntil
+          ? meta.syncedUntil.minus({ days: 1 })
           : DateTime.now().minus({ days: 1 }).startOf('day')
 
         await this.syncDailyStatsBackwards(startDay, meta.syncStartDate, meta)
 
         meta.syncStatus = SyncStatus.SUCCESS
-        meta.lastSyncAt = DateTime.now()
+        meta.lastSuccessSyncAt = DateTime.now()
         meta.lastError = null
         await meta.save()
         this.logger.info('Первоначальная синхронизация завершена успешно')
@@ -128,14 +119,14 @@ export class YandexSyncService implements ISyncService {
           await meta.refresh()
         }
 
-        const startDay = meta.currentSyncDate
-          ? meta.currentSyncDate.minus({ days: 1 })
+        const startDay = meta.syncedUntil
+          ? meta.syncedUntil.minus({ days: 1 })
           : DateTime.now().minus({ days: 1 }).startOf('day')
 
         await this.syncDailyStatsBackwards(startDay, meta.syncStartDate, meta)
 
         meta.syncStatus = SyncStatus.SUCCESS
-        meta.lastSyncAt = DateTime.now()
+        meta.lastSuccessSyncAt = DateTime.now()
         meta.lastError = null
         await meta.save()
         this.logger.info('Синхронизация возобновлена и успешно завершена')
@@ -210,7 +201,7 @@ export class YandexSyncService implements ISyncService {
 
     await this.syncDailyStatsForPeriod(dateFrom, dateTo)
     meta.lastTimestamp = newTimestamp
-    meta.lastSyncAt = DateTime.now()
+    meta.lastSuccessSyncAt = DateTime.now()
     await meta.save()
 
     this.logger.info(`Ежедневная синхронизация завершена. Новая временная метка: ${newTimestamp}`)
@@ -373,7 +364,7 @@ export class YandexSyncService implements ISyncService {
 
     while (periodEnd >= endDay) {
       await this.syncPeriodAdaptive(periodEnd, endDay, meta)
-      periodEnd = meta.currentSyncDate!.minus({ days: 1 })
+      periodEnd = meta.syncedUntil!.minus({ days: 1 })
     }
   }
 
@@ -392,7 +383,7 @@ export class YandexSyncService implements ISyncService {
 
       try {
         await this.syncDailyStatsForPeriod(periodStart, periodEnd)
-        meta.currentSyncDate = periodStart
+        meta.syncedUntil = periodStart
         await meta.save()
 
         this.logger.info(
@@ -463,8 +454,8 @@ export class YandexSyncService implements ISyncService {
         token: null,
         lastTimestamp: null,
         syncStartDate: null,
-        currentSyncDate: null,
-        lastSyncAt: null,
+        syncedUntil: null,
+        lastSuccessSyncAt: null,
         syncStatus: null,
         lastError: null,
         referenceSyncPhase: ReferenceSyncPhase.CAMPAIGNS,

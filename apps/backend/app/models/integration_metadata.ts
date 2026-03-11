@@ -2,8 +2,6 @@ import { DateTime } from 'luxon'
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 
 export enum SyncStatus {
-  INITIALIZING = 'initializing',
-  PENDING = 'pending',
   PARTIAL = 'partial',
   SUCCESS = 'success',
   ERROR = 'error',
@@ -14,15 +12,6 @@ export enum ReferenceSyncPhase {
   AD_GROUPS = 'adGroups',
   ADS = 'ads',
   DONE = 'done',
-}
-
-// TODO: Добить список, он не полный
-export enum SyncErrorCode {
-  NETWORK = 'network',
-  TOKEN_UNAVAILABLE = 'token_unavailable',
-  EXHAUSTED_COUNT = 'exhausted_count',
-  API_LIMIT = 'api_limit',
-  UNKNOWN = 'unknown',
 }
 
 export default class IntegrationMetadata extends BaseModel {
@@ -43,11 +32,18 @@ export default class IntegrationMetadata extends BaseModel {
   @column.date()
   declare syncStartDate: DateTime | null
 
+  /**
+   * Дата, до которой данные загружены (включительно).
+   * Обновляется после каждого успешного периода загрузки.
+   */
   @column.date()
-  declare currentSyncDate: DateTime | null
+  declare syncedUntil: DateTime | null
 
+  /**
+   * Записывается только при успешном завершении синхронизации.
+   */
   @column.dateTime()
-  declare lastSyncAt: DateTime | null
+  declare lastSuccessSyncAt: DateTime | null
 
   @column()
   declare syncStatus: SyncStatus | null
@@ -56,7 +52,7 @@ export default class IntegrationMetadata extends BaseModel {
   declare referenceSyncPhase: ReferenceSyncPhase
 
   @column()
-  declare lastError: SyncErrorCode | string | null
+  declare lastError: string | null
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

@@ -111,8 +111,8 @@ export default class YandexIntegrationController {
         isHasToken: false,
         lastTimestamp: null,
         syncStartDate: null,
-        currentSyncDate: null,
-        lastSyncAt: null,
+        syncedUntil: null,
+        lastSuccessSyncAt: null,
         syncStatus: null,
         referenceSyncPhase: null,
         lastError: null,
@@ -123,10 +123,9 @@ export default class YandexIntegrationController {
       status: 'success',
       isHasToken: !!metadata.token,
       lastTimestamp: metadata.lastTimestamp,
-      syncStatus: metadata.syncStatus,
       syncStartDate: metadata.syncStartDate?.toISODate() ?? null,
-      currentSyncDate: metadata.currentSyncDate?.toISODate() ?? null,
-      lastSyncAt: metadata.lastSyncAt?.toISO() ?? null,
+      syncedUntil: metadata.syncedUntil?.toISODate() ?? null,
+      lastSuccessSyncAt: metadata.lastSuccessSyncAt?.toISO() ?? null,
       referenceSyncPhase: metadata.referenceSyncPhase,
       lastError: metadata.lastError,
     })
@@ -158,16 +157,8 @@ export default class YandexIntegrationController {
       })
     }
 
-    const isSyncing =
-      metadata.syncStatus === SyncStatus.PENDING || metadata.syncStatus === SyncStatus.INITIALIZING
-
-    if (isSyncing) {
-      return response.conflict({
-        status: 'error',
-        error: 'sync_in_progress',
-        message: 'Синхронизация уже выполняется. Дождитесь её завершения.',
-      })
-    }
+    // Removed check for PENDING/INITIALIZING because they are deleted from SyncStatus.
+    // Sync runs via cron (queue), so concurrent HTTP triggers aren't the primary way it runs anyway.
 
     const api = new YandexApiClient(metadata.token)
     const syncService = new YandexSyncService(api)
