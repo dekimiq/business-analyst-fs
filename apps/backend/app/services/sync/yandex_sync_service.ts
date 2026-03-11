@@ -6,14 +6,19 @@ import Ad from '#models/ad'
 import DailyStat from '#models/daily_stat'
 import IntegrationMetadata, { ReferenceSyncPhase, SyncStatus } from '#models/integration_metadata'
 import type { IYandexApiClient } from '#contracts/i_yandex_api_client'
-import { ApiAuthError, ApiFatalError, ApiRetryExhaustedError } from '#exceptions/api_exceptions'
+import {
+  ApiAuthError,
+  ApiFatalError,
+  ApiLimitError,
+  ApiReportUnpossible,
+  ApiRetryExhaustedError,
+} from '#exceptions/api_exceptions'
 import {
   MetaSyncStartDateUnavailableError,
   MetaTokenUnavailableError,
   SyncError,
 } from '#exceptions/sync_exceptions'
-import { ApiRetryService } from '#utils/api_retry'
-import { yandexRetryConfig } from '#app_config/api/yandex_retry_config'
+import { YandexRetryService } from '#utils/yandex_retry'
 import type { ISyncService } from '@project/shared'
 import { SyncLoggerService } from '#services/sync/sync_logger_service'
 
@@ -89,7 +94,7 @@ export class YandexSyncService implements ISyncService {
         // --- Initial Timestamp ---
         if (!meta.lastTimestamp) {
           try {
-            const timestampResponse = await ApiRetryService.call(yandexRetryConfig, () =>
+            const timestampResponse = await YandexRetryService.call(() =>
               this.api.getServerTimestamp()
             )
             meta.lastTimestamp = (timestampResponse as any).Timestamp || String(timestampResponse)
@@ -158,7 +163,7 @@ export class YandexSyncService implements ISyncService {
       const campaignRecords = await Campaign.query().where('source', SOURCE)
       const campaignIds = campaignRecords.map((c: any) => Number(c.campaignId))
 
-      const changes = await ApiRetryService.call(yandexRetryConfig, () =>
+      const changes = await YandexRetryService.call(() =>
         this.api.checkChanges(lastTimestamp, campaignIds)
       )
       newTimestamp = changes.Timestamp
@@ -176,7 +181,7 @@ export class YandexSyncService implements ISyncService {
     } catch (error) {
       if (error instanceof ApiAuthError) {
         meta.syncStatus = SyncStatus.ERROR
-        meta.lastError = 'token_error'
+        meta.lastError = 'auth_unavailable'
         await meta.save()
         this.logger.error('Ошибка аутентификации во время ежедневной синхронизации')
       }
@@ -225,9 +230,7 @@ export class YandexSyncService implements ISyncService {
     if (!meta.referenceSyncPhase || meta.referenceSyncPhase === ReferenceSyncPhase.CAMPAIGNS) {
       try {
         await db.transaction(async (trx) => {
-          const campaigns = await ApiRetryService.call(yandexRetryConfig, () =>
-            this.api.getCampaigns()
-          )
+          const campaigns = await YandexRetryService.call(() => this.api.getCampaigns())
           this.logger.info(`Получение кампаний: ${campaigns.length}`)
 
           for (const c of campaigns) {
@@ -244,6 +247,16 @@ export class YandexSyncService implements ISyncService {
           }
         })
       } catch (error) {
+        if (
+          error instanceof ApiAuthError ||
+          error instanceof ApiLimitError ||
+          error instanceof ApiReportUnpossible ||
+          error instanceof ApiRetryExhaustedError
+        ) {
+          throw error
+        }
+        const message = error instanceof Error ? error.message : String(error)
+        this.logger.error(`Ошибка при получении кампаний: ${message}`)
         throw new ApiFatalError('campaigns_unknown')
       }
       meta.referenceSyncPhase = ReferenceSyncPhase.AD_GROUPS
@@ -258,9 +271,7 @@ export class YandexSyncService implements ISyncService {
           const campaignIds = campaignRecords.map((c: any) => Number(c.campaignId))
 
           if (campaignIds.length > 0) {
-            const adGroups = await ApiRetryService.call(yandexRetryConfig, () =>
-              this.api.getAdGroups(campaignIds)
-            )
+            const adGroups = await YandexRetryService.call(() => this.api.getAdGroups(campaignIds))
             this.logger.info(`Получение групп объявлений: ${adGroups.length}`)
 
             const campaignIdMap = new Map(
@@ -280,6 +291,16 @@ export class YandexSyncService implements ISyncService {
           }
         })
       } catch (error) {
+        if (
+          error instanceof ApiAuthError ||
+          error instanceof ApiLimitError ||
+          error instanceof ApiReportUnpossible ||
+          error instanceof ApiRetryExhaustedError
+        ) {
+          throw error
+        }
+        const message = error instanceof Error ? error.message : String(error)
+        this.logger.error(`Ошибка при получении групп объявлений: ${message}`)
         throw new ApiFatalError('adgroups_unknown')
       }
       meta.referenceSyncPhase = ReferenceSyncPhase.ADS
@@ -294,9 +315,7 @@ export class YandexSyncService implements ISyncService {
           const adGroupIds = adGroupRecords.map((g: any) => Number(g.groupId))
 
           if (adGroupIds.length > 0) {
-            const ads = await ApiRetryService.call(yandexRetryConfig, () =>
-              this.api.getAds(adGroupIds)
-            )
+            const ads = await YandexRetryService.call(() => this.api.getAds(adGroupIds))
             this.logger.info(`Получение объявлений: ${ads.length}`)
 
             const adGroupIdMap = new Map(adGroupRecords.map((g: any) => [Number(g.groupId), g.id]))
@@ -318,6 +337,16 @@ export class YandexSyncService implements ISyncService {
           }
         })
       } catch (error) {
+        if (
+          error instanceof ApiAuthError ||
+          error instanceof ApiLimitError ||
+          error instanceof ApiReportUnpossible ||
+          error instanceof ApiRetryExhaustedError
+        ) {
+          throw error
+        }
+        const message = error instanceof Error ? error.message : String(error)
+        this.logger.error(`Ошибка при получении объявлений: ${message}`)
         throw new ApiFatalError('ads_unknown')
       }
       meta.referenceSyncPhase = ReferenceSyncPhase.DONE
@@ -370,13 +399,17 @@ export class YandexSyncService implements ISyncService {
           `Успешно загруженный период: ${periodStart.toISODate()} – ${periodEnd.toISODate()}`
         )
         return
-      } catch (error) {
-        if (error instanceof ApiRetryExhaustedError) {
+      } catch (error: any) {
+        if (error instanceof ApiRetryExhaustedError || error instanceof ApiReportUnpossible) {
           if (stepDays === PERIOD_STEPS_DAYS[PERIOD_STEPS_DAYS.length - 1]) {
-            this.logger.warn(`Минимальный период (${stepDays} дней) провален. Попытки исчерпаны`)
+            this.logger.warn(
+              `Минимальный период (${stepDays} дней) провален. Попытки исчерпаны/Отчет невозможен`
+            )
             throw error
           }
-          this.logger.warn(`Периодв в ${stepDays} дней провален, сокращение периода...`)
+          this.logger.warn(
+            `Период в ${stepDays} дней провален (${error.name}), сокращение периода...`
+          )
           continue
         }
         throw error
@@ -385,9 +418,10 @@ export class YandexSyncService implements ISyncService {
   }
 
   private async syncDailyStatsForPeriod(dateFrom: DateTime, dateTo: DateTime): Promise<void> {
-    const stats = await ApiRetryService.call(yandexRetryConfig, () =>
+    const response = await YandexRetryService.call(() =>
       this.api.getDailyStats({ dateFrom, dateTo })
     )
+    const stats = response as any
 
     if (stats.length === 0) return
 
@@ -443,12 +477,20 @@ export class YandexSyncService implements ISyncService {
 
     if (error instanceof ApiAuthError) {
       meta.syncStatus = SyncStatus.ERROR
-      meta.lastError = 'token_unavailable'
+      meta.lastError = 'auth_unavailable'
       this.logger.error(`Ошибка синхронизации (авторизация): ${message}`)
     } else if (error instanceof ApiFatalError) {
       meta.syncStatus = SyncStatus.ERROR
       meta.lastError = message
       this.logger.error(`Фатальная ошибка API: ${message}`)
+    } else if (error instanceof ApiLimitError) {
+      meta.syncStatus = SyncStatus.PARTIAL
+      meta.lastError = 'api_limit_exceeded'
+      this.logger.error(`Лимит API исчерпан: ${message}`)
+    } else if (error instanceof ApiReportUnpossible || error instanceof ApiRetryExhaustedError) {
+      meta.syncStatus = SyncStatus.PARTIAL
+      meta.lastError = error instanceof ApiReportUnpossible ? 'report_unavailable' : 'timeout'
+      this.logger.warn(`Синхронизация прервана на отчетах: ${message}`)
     } else if (error instanceof SyncError) {
       meta.syncStatus = SyncStatus.ERROR
       meta.lastError = message

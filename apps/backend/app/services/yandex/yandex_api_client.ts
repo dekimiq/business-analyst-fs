@@ -10,8 +10,7 @@ import type {
   YandexGetAds,
   YandexDailyStat,
 } from '#types/yandex'
-import { ApiRetryService } from '#utils/api_retry'
-import { yandexRetryConfig } from '#app_config/api/yandex_retry_config'
+import { YandexRetryService } from '#utils/yandex_retry'
 
 /**
  * Вспомогательная функция: разбивает массив на чанки заданного размера.
@@ -33,7 +32,7 @@ export class YandexApiClient implements IYandexApiClient {
 
   constructor(token: string) {
     this.client = axios.create({
-      baseURL: 'https://api.direct.yandex.com/json/v5',
+      baseURL: 'https://api.direct.yandex.com/json/v5/',
       proxy: false,
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -51,15 +50,17 @@ export class YandexApiClient implements IYandexApiClient {
    */
   async ping(): Promise<boolean> {
     try {
-      const response = await this.client.post('/campaigns', {
-        method: 'get',
-        params: {
-          SelectionCriteria: {},
-          FieldNames: ['Id'],
-          Page: { Limit: 1, Offset: 0 },
-        },
-      })
-      return response.status === 200
+      await YandexRetryService.call(() =>
+        this.client.post('campaigns', {
+          method: 'get',
+          params: {
+            SelectionCriteria: {},
+            FieldNames: ['Id'],
+            Page: { Limit: 1, Offset: 0 },
+          },
+        })
+      )
+      return true
     } catch {
       return false
     }
@@ -78,7 +79,7 @@ export class YandexApiClient implements IYandexApiClient {
     const limit = 10_000
 
     while (true) {
-      const response = await ApiRetryService.call(yandexRetryConfig, () =>
+      const response = await YandexRetryService.call(() =>
         fetchPage({ Limit: limit, Offset: offset })
       )
       const items = extractItems(response.data)
@@ -97,7 +98,7 @@ export class YandexApiClient implements IYandexApiClient {
   async getCampaigns(): Promise<YandexCampaign[]> {
     return this.fetchAllPages<YandexCampaign, YandexGetCampaigns>(
       (page) =>
-        this.client.post('/campaigns', {
+        this.client.post('campaigns', {
           method: 'get',
           params: {
             SelectionCriteria: {},
@@ -120,7 +121,7 @@ export class YandexApiClient implements IYandexApiClient {
     for (const chunk of chunks) {
       const items = await this.fetchAllPages<YandexAdGroup, YandexGetAdGroups>(
         (page) =>
-          this.client.post('/adgroups', {
+          this.client.post('adgroups', {
             method: 'get',
             params: {
               SelectionCriteria: { CampaignIds: chunk },
@@ -147,7 +148,7 @@ export class YandexApiClient implements IYandexApiClient {
     for (const chunk of chunks) {
       const items = await this.fetchAllPages<YandexAd, YandexGetAds>(
         (page) =>
-          this.client.post('/ads', {
+          this.client.post('ads', {
             method: 'get',
             params: {
               SelectionCriteria: { AdGroupIds: chunk },
@@ -187,9 +188,9 @@ export class YandexApiClient implements IYandexApiClient {
     const limit = 1_000_000
 
     while (true) {
-      const response = await ApiRetryService.call(yandexRetryConfig, () =>
+      const response = await YandexRetryService.call(() =>
         this.client.post<string>(
-          '/reports',
+          'reports',
           {
             params: {
               SelectionCriteria: { DateFrom: from, DateTo: to },
@@ -254,8 +255,8 @@ export class YandexApiClient implements IYandexApiClient {
       params.CampaignIds = campaignIds.slice(0, 10_000)
     }
 
-    const response = await ApiRetryService.call(yandexRetryConfig, () =>
-      this.client.post('/changes', { method: 'check', params })
+    const response = await YandexRetryService.call(() =>
+      this.client.post('changes', { method: 'check', params })
     )
 
     return response.data.result as {
