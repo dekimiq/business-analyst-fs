@@ -8,7 +8,7 @@ import AdGroup from '#models/ad_group'
 import Ad from '#models/ad'
 import DailyStat from '#models/daily_stat'
 import { YandexSyncService } from '#services/sync/yandex_sync_service'
-import { ApiFatalError } from '#utils/api_retry'
+import { ApiFatalError } from '#exceptions/api_exceptions'
 import { YandexApiClient } from '#services/yandex/yandex_api_client'
 
 import campaignsFixture from '../../app/__fixtures__/yandex/campaigns.json' with { type: 'json' }
