@@ -6,12 +6,13 @@ import Ad from '#models/ad'
 import DailyStat from '#models/daily_stat'
 import IntegrationMetadata, { ReferenceSyncPhase, SyncStatus } from '#models/integration_metadata'
 import type { IYandexApiClient } from '#contracts/i_yandex_api_client'
+import { ApiAuthError, ApiFatalError, ApiRetryExhaustedError } from '#exceptions/api_exceptions'
 import {
-  ApiAuthError,
-  ApiFatalError,
-  ApiRetryExhaustedError,
-  ApiRetryService,
-} from '#utils/api_retry'
+  MetaSyncStartDateUnavailableError,
+  MetaTokenUnavailableError,
+  SyncError,
+} from '#exceptions/sync_exceptions'
+import { ApiRetryService } from '#utils/api_retry'
 import { yandexRetryConfig } from '#app_config/api/yandex_retry_config'
 import type { ISyncService } from '@project/shared'
 import { SyncLoggerService } from '#services/sync/sync_logger_service'
@@ -36,50 +37,66 @@ export class YandexSyncService implements ISyncService {
     return !!meta.token && !!meta.syncStartDate
   }
 
-  async getDataAvailability(): Promise<{ availableUntil: string | null }> {
+  async getDataAvailability(): Promise<{ availableUntil: 'none' | 'all' | string }> {
     const meta = await this.getMeta()
 
-    if (meta.syncStatus === SyncStatus.INITIALIZING || meta.syncStatus === SyncStatus.PENDING) {
-      return { availableUntil: null }
+    if (!meta.syncStatus || meta.syncStatus === SyncStatus.INITIALIZING) {
+      return { availableUntil: 'none' }
     }
 
-    if (!meta.syncStatus || !meta.currentSyncDate) {
-      return { availableUntil: null }
+    const isInterruptedOrPending = [
+      SyncStatus.PENDING,
+      SyncStatus.ERROR,
+      SyncStatus.PARTIAL,
+    ].includes(meta.syncStatus)
+
+    if (isInterruptedOrPending && meta.currentSyncDate) {
+      return { availableUntil: meta.currentSyncDate.toISODate()! }
     }
 
-    if (meta.syncStatus !== SyncStatus.SUCCESS) {
-      return { availableUntil: meta.currentSyncDate.toISODate() }
-    }
-
-    return { availableUntil: null }
+    return { availableUntil: 'all' }
   }
 
   async sync(): Promise<void> {
     const meta = await this.getMeta()
 
-    if (!meta.syncStartDate) {
-      throw new ApiFatalError(
-        'syncStartDate is not configured. Set sync date before starting synchronization.'
-      )
-    }
-
-    this.logger.info(`Sync started. Current status: ${meta.syncStatus}`)
+    this.logger.info(`Синхронизация запущена. Текущий статус: ${meta.syncStatus}`)
 
     try {
+      if (!meta.token) {
+        throw new MetaTokenUnavailableError()
+      }
+
+      if (!meta.syncStartDate) {
+        throw new MetaSyncStartDateUnavailableError()
+      }
+
       if (meta.syncStatus === null || meta.syncStatus === SyncStatus.INITIALIZING) {
         if (meta.syncStatus === null) {
           meta.syncStatus = SyncStatus.INITIALIZING
           await meta.save()
         }
 
-        await this.syncStructuralData(meta)
+        // --- Structural Data ---
+        if (meta.referenceSyncPhase !== ReferenceSyncPhase.DONE) {
+          await db.transaction(async (trx) => {
+            meta.useTransaction(trx)
+            await this.syncStructuralData(meta)
+          })
+          await meta.refresh()
+        }
 
+        // --- Initial Timestamp ---
         if (!meta.lastTimestamp) {
-          const timestampResponse = await ApiRetryService.call(yandexRetryConfig, () =>
-            this.api.getServerTimestamp()
-          )
-          meta.lastTimestamp = (timestampResponse as any).Timestamp || String(timestampResponse)
-          await meta.save()
+          try {
+            const timestampResponse = await ApiRetryService.call(yandexRetryConfig, () =>
+              this.api.getServerTimestamp()
+            )
+            meta.lastTimestamp = (timestampResponse as any).Timestamp || String(timestampResponse)
+            await meta.save()
+          } catch (error) {
+            throw new ApiFatalError('timestamp_unknown')
+          }
         }
 
         const startDay = meta.currentSyncDate
@@ -90,15 +107,20 @@ export class YandexSyncService implements ISyncService {
 
         meta.syncStatus = SyncStatus.SUCCESS
         meta.lastSyncAt = DateTime.now()
+        meta.lastError = null
         await meta.save()
-        this.logger.info('Initial sync completed successfully.')
+        this.logger.info('Первоначальная синхронизация завершена успешно')
       } else if (meta.syncStatus === SyncStatus.SUCCESS) {
         await this.dailySync(meta)
       } else if (meta.syncStatus === SyncStatus.ERROR || meta.syncStatus === SyncStatus.PARTIAL) {
-        this.logger.info(`Resuming sync from status: ${meta.syncStatus}`)
+        this.logger.info(`Возобновление синхронизации из состояния: ${meta.syncStatus}`)
 
         if (meta.referenceSyncPhase !== ReferenceSyncPhase.DONE) {
-          await this.syncStructuralData(meta)
+          await db.transaction(async (trx) => {
+            meta.useTransaction(trx)
+            await this.syncStructuralData(meta)
+          })
+          await meta.refresh()
         }
 
         const startDay = meta.currentSyncDate
@@ -109,8 +131,9 @@ export class YandexSyncService implements ISyncService {
 
         meta.syncStatus = SyncStatus.SUCCESS
         meta.lastSyncAt = DateTime.now()
+        meta.lastError = null
         await meta.save()
-        this.logger.info('Sync resumed and completed successfully.')
+        this.logger.info('Синхронизация возобновлена и успешно завершена')
       }
     } catch (error) {
       await this.handleSyncError(meta, error)
@@ -124,7 +147,9 @@ export class YandexSyncService implements ISyncService {
 
   private async dailySync(meta: IntegrationMetadata): Promise<void> {
     const lastTimestamp = meta.lastTimestamp || (await this.api.getServerTimestamp())
-    this.logger.info(`Daily sync started. Checking changes since: ${lastTimestamp}`)
+    this.logger.info(
+      `Началась ежедневная синхронизация. Проверка изменений с момента: ${lastTimestamp}`
+    )
 
     let newTimestamp: string
     let borderDateStr: string | undefined
@@ -153,7 +178,7 @@ export class YandexSyncService implements ISyncService {
         meta.syncStatus = SyncStatus.ERROR
         meta.lastError = 'token_error'
         await meta.save()
-        this.logger.error('Authentication error during daily sync.')
+        this.logger.error('Ошибка аутентификации во время ежедневной синхронизации')
       }
       throw error
     }
@@ -165,12 +190,12 @@ export class YandexSyncService implements ISyncService {
     if (borderDateStr) {
       dateFrom = DateTime.fromISO(borderDateStr, { zone: 'Europe/Moscow' }).startOf('day')
       this.logger.info(
-        `Changes detected. Loading period ${dateFrom.toISODate()} - ${dateTo.toISODate()}`
+        `Обнаружены изменения. Период загрузки ${dateFrom.toISODate()} - ${dateTo.toISODate()}`
       )
     } else {
       dateFrom = DateTime.now().minus({ days: 3 }).startOf('day')
       this.logger.info(
-        `No changes detected. Proactive loading period ${dateFrom.toISODate()} - ${dateTo.toISODate()}`
+        `Изменений не обнаружено. Период активной загрузки ${dateFrom.toISODate()} - ${dateTo.toISODate()}`
       )
     }
 
@@ -183,114 +208,132 @@ export class YandexSyncService implements ISyncService {
     meta.lastSyncAt = DateTime.now()
     await meta.save()
 
-    this.logger.info(`Daily sync completed. New Timestamp: ${newTimestamp}`)
+    this.logger.info(`Ежедневная синхронизация завершена. Новая временная метка: ${newTimestamp}`)
 
     if (meta.syncStatus === SyncStatus.PARTIAL) {
-      this.logger.info('Status is partial, continuing initial sync...')
+      this.logger.info('Статус - partial, начальная синхронизация продолжается...')
       await this.sync()
     }
   }
 
-  private async syncStructuralData(meta: IntegrationMetadata): Promise<void> {
-    this.logger.info('Syncing structural data...')
-
-    let phase = meta.referenceSyncPhase || ReferenceSyncPhase.CAMPAIGNS
+  private async asyncSyncStructuralData(meta: IntegrationMetadata): Promise<void> {
+    this.logger.info(
+      `Синхронизация структурных данных. Текущая фаза в БД: ${meta.referenceSyncPhase}`
+    )
 
     // --- Campaigns ---
-    if (phase === ReferenceSyncPhase.CAMPAIGNS) {
-      await db.transaction(async (trx) => {
-        const campaigns = await ApiRetryService.call(yandexRetryConfig, () =>
-          this.api.getCampaigns()
-        )
-        this.logger.info(`Fetched campaigns: ${campaigns.length}`)
-
-        for (const c of campaigns) {
-          await Campaign.updateOrCreate(
-            { source: SOURCE, campaignId: c.Id },
-            {
-              name: c.Name,
-              type: c.Type ?? null,
-              status: c.Status ?? null,
-              state: c.State ?? null,
-            },
-            { client: trx }
+    if (!meta.referenceSyncPhase || meta.referenceSyncPhase === ReferenceSyncPhase.CAMPAIGNS) {
+      try {
+        await db.transaction(async (trx) => {
+          const campaigns = await ApiRetryService.call(yandexRetryConfig, () =>
+            this.api.getCampaigns()
           )
-        }
-      })
-      meta.referenceSyncPhase = ReferenceSyncPhase.AD_GROUPS
-      await meta.save()
-      phase = ReferenceSyncPhase.AD_GROUPS
-    }
+          this.logger.info(`Получение кампаний: ${campaigns.length}`)
 
-    // --- AdGroups ---
-    if (phase === ReferenceSyncPhase.AD_GROUPS) {
-      await db.transaction(async (trx) => {
-        const campaignRecords = await Campaign.query({ client: trx }).where('source', SOURCE)
-        const campaignIds = campaignRecords.map((c: any) => Number(c.campaignId))
-
-        if (campaignIds.length > 0) {
-          const adGroups = await ApiRetryService.call(yandexRetryConfig, () =>
-            this.api.getAdGroups(campaignIds)
-          )
-          this.logger.info(`Fetched ad groups: ${adGroups.length}`)
-
-          const campaignIdMap = new Map(
-            campaignRecords.map((c: any) => [Number(c.campaignId), c.id])
-          )
-
-          for (const g of adGroups) {
-            const internalCampaignId = campaignIdMap.get(g.CampaignId)
-            if (!internalCampaignId) continue
-
-            await AdGroup.updateOrCreate(
-              { source: SOURCE, groupId: g.Id },
-              { name: g.Name, campaignId: internalCampaignId },
-              { client: trx }
-            )
-          }
-        }
-      })
-      meta.referenceSyncPhase = ReferenceSyncPhase.ADS
-      await meta.save()
-      phase = ReferenceSyncPhase.ADS
-    }
-
-    // --- Ads ---
-    if (phase === ReferenceSyncPhase.ADS) {
-      await db.transaction(async (trx) => {
-        const adGroupRecords = await AdGroup.query({ client: trx }).where('source', SOURCE)
-        const adGroupIds = adGroupRecords.map((g: any) => Number(g.groupId))
-
-        if (adGroupIds.length > 0) {
-          const ads = await ApiRetryService.call(yandexRetryConfig, () =>
-            this.api.getAds(adGroupIds)
-          )
-          this.logger.info(`Fetched ads: ${ads.length}`)
-
-          const adGroupIdMap = new Map(adGroupRecords.map((g: any) => [Number(g.groupId), g.id]))
-
-          for (const a of ads) {
-            const internalGroupId = adGroupIdMap.get(a.AdGroupId)
-            if (!internalGroupId) continue
-
-            await Ad.updateOrCreate(
-              { source: SOURCE, adId: a.Id },
+          for (const c of campaigns) {
+            await Campaign.updateOrCreate(
+              { source: SOURCE, campaignId: c.Id },
               {
-                groupId: internalGroupId,
-                title: a.TextAd?.Title ?? null,
-                text: a.TextAd?.Text ?? null,
+                name: c.Name,
+                type: c.Type ?? null,
+                status: c.Status ?? null,
+                state: c.State ?? null,
               },
               { client: trx }
             )
           }
-        }
-      })
-      meta.referenceSyncPhase = ReferenceSyncPhase.DONE
+        })
+      } catch (error) {
+        throw new ApiFatalError('campaigns_unknown')
+      }
+      meta.referenceSyncPhase = ReferenceSyncPhase.AD_GROUPS
       await meta.save()
     }
 
-    this.logger.info('Structural data sync completed.')
+    // --- AdGroups ---
+    if (meta.referenceSyncPhase === ReferenceSyncPhase.AD_GROUPS) {
+      try {
+        await db.transaction(async (trx) => {
+          const campaignRecords = await Campaign.query({ client: trx }).where('source', SOURCE)
+          const campaignIds = campaignRecords.map((c: any) => Number(c.campaignId))
+
+          if (campaignIds.length > 0) {
+            const adGroups = await ApiRetryService.call(yandexRetryConfig, () =>
+              this.api.getAdGroups(campaignIds)
+            )
+            this.logger.info(`Получение групп объявлений: ${adGroups.length}`)
+
+            const campaignIdMap = new Map(
+              campaignRecords.map((c: any) => [Number(c.campaignId), c.id])
+            )
+
+            for (const g of adGroups) {
+              const internalCampaignId = campaignIdMap.get(g.CampaignId)
+              if (!internalCampaignId) continue
+
+              await AdGroup.updateOrCreate(
+                { source: SOURCE, groupId: g.Id },
+                { name: g.Name, campaignId: internalCampaignId },
+                { client: trx }
+              )
+            }
+          }
+        })
+      } catch (error) {
+        throw new ApiFatalError('adgroups_unknown')
+      }
+      meta.referenceSyncPhase = ReferenceSyncPhase.ADS
+      await meta.save()
+    }
+
+    // --- Ads ---
+    if (meta.referenceSyncPhase === ReferenceSyncPhase.ADS) {
+      try {
+        await db.transaction(async (trx) => {
+          const adGroupRecords = await AdGroup.query({ client: trx }).where('source', SOURCE)
+          const adGroupIds = adGroupRecords.map((g: any) => Number(g.groupId))
+
+          if (adGroupIds.length > 0) {
+            const ads = await ApiRetryService.call(yandexRetryConfig, () =>
+              this.api.getAds(adGroupIds)
+            )
+            this.logger.info(`Получение объявлений: ${ads.length}`)
+
+            const adGroupIdMap = new Map(adGroupRecords.map((g: any) => [Number(g.groupId), g.id]))
+
+            for (const a of ads) {
+              const internalGroupId = adGroupIdMap.get(a.AdGroupId)
+              if (!internalGroupId) continue
+
+              await Ad.updateOrCreate(
+                { source: SOURCE, adId: a.Id },
+                {
+                  groupId: internalGroupId,
+                  title: a.TextAd?.Title ?? null,
+                  text: a.TextAd?.Text ?? null,
+                },
+                { client: trx }
+              )
+            }
+          }
+        })
+      } catch (error) {
+        throw new ApiFatalError('ads_unknown')
+      }
+      meta.referenceSyncPhase = ReferenceSyncPhase.DONE
+      this.logger.info(`Фаза обновлена на: ${meta.referenceSyncPhase}`)
+      await meta.save()
+      this.logger.info('Фаза сохранена в БД')
+    }
+
+    this.logger.info('Синхронизация структурных данных выполнена')
   }
+
+  private async syncStructuralData(meta: IntegrationMetadata): Promise<void> {
+    return this.asyncSyncStructuralData(meta)
+  }
+
+  // NEXT STEP: Дочитать дальше <----------------------------------------------------------------------------
 
   private async syncDailyStatsBackwards(
     startDay: DateTime,
@@ -315,7 +358,7 @@ export class YandexSyncService implements ISyncService {
       const periodStart = rawStart < hardLimit ? hardLimit : rawStart
 
       this.logger.info(
-        `Trying period ${periodStart.toISODate()} – ${periodEnd.toISODate()} (${stepDays} days)`
+        `Попытка загрузки преиода в ${periodStart.toISODate()} – ${periodEnd.toISODate()} (${stepDays} дней)`
       )
 
       try {
@@ -324,16 +367,16 @@ export class YandexSyncService implements ISyncService {
         await meta.save()
 
         this.logger.info(
-          `Successfully loaded period: ${periodStart.toISODate()} – ${periodEnd.toISODate()}`
+          `Успешно загруженный период: ${periodStart.toISODate()} – ${periodEnd.toISODate()}`
         )
         return
       } catch (error) {
         if (error instanceof ApiRetryExhaustedError) {
           if (stepDays === PERIOD_STEPS_DAYS[PERIOD_STEPS_DAYS.length - 1]) {
-            this.logger.warn(`Minimum period (${stepDays} days) failed. Retries exhausted.`)
+            this.logger.warn(`Минимальный период (${stepDays} дней) провален. Попытки исчерпаны`)
             throw error
           }
-          this.logger.warn(`Period ${stepDays} days failed, splitting further...`)
+          this.logger.warn(`Периодв в ${stepDays} дней провален, сокращение периода...`)
           continue
         }
         throw error
@@ -400,16 +443,20 @@ export class YandexSyncService implements ISyncService {
 
     if (error instanceof ApiAuthError) {
       meta.syncStatus = SyncStatus.ERROR
-      meta.lastError = 'token_error'
-      this.logger.error(`Sync failed due to authentication error: ${message}`)
+      meta.lastError = 'token_unavailable'
+      this.logger.error(`Ошибка синхронизации (авторизация): ${message}`)
     } else if (error instanceof ApiFatalError) {
       meta.syncStatus = SyncStatus.ERROR
       meta.lastError = message
-      this.logger.error(`Sync failed due to fatal error: ${message}`)
+      this.logger.error(`Фатальная ошибка API: ${message}`)
+    } else if (error instanceof SyncError) {
+      meta.syncStatus = SyncStatus.ERROR
+      meta.lastError = message
+      this.logger.error(`Ошибка метаданных: ${message}`)
     } else {
       meta.syncStatus = SyncStatus.PARTIAL
       meta.lastError = message
-      this.logger.warn(`Sync interrupted, status set to partial. Reason: ${message}`)
+      this.logger.warn(`Синхронизация прервана (partial). Причина: ${message}`)
     }
 
     await meta.save()
