@@ -23,6 +23,26 @@ export class ApiRetryExhaustedError extends Error {
 }
 
 /**
+ * Ошибка, выбрасываемая когда достигнут лимит (коды 152/52).
+ */
+export class ApiLimitError extends Error {
+  constructor(message: string = 'Достигнут лимит по API') {
+    super(message)
+    this.name = 'ApiLimitError'
+  }
+}
+
+/**
+ * Ошибка, выбрасываемая когда невозможно построить отчет.
+ */
+export class ApiReportUnpossible extends Error {
+  constructor(message: string = 'Невозможно дать ответ сейчас по API') {
+    super(message)
+    this.name = 'ApiReportUnpossible'
+  }
+}
+
+/**
  * Фатальная ошибка API, при которой продолжение процесса невозможно.
  */
 export class ApiFatalError extends Error {
