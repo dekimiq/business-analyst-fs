@@ -9,6 +9,10 @@ import Ad from '#models/ad'
 import DailyStat from '#models/daily_stat'
 import { YandexSyncService } from '#services/sync/yandex_sync_service'
 import { ApiFatalError } from '#exceptions/api_exceptions'
+import {
+  MetaSyncStartDateUnavailableError,
+  MetaTokenUnavailableError,
+} from '#exceptions/sync_exceptions'
 import { YandexApiClient } from '#services/yandex/yandex_api_client'
 
 import campaignsFixture from '../../app/__fixtures__/yandex/campaigns.json' with { type: 'json' }
@@ -160,8 +164,13 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
     await setupMeta({ token: null })
     try {
       await service.sync()
+      assert.fail('Должна быть ошибка MetaTokenUnavailableError')
     } catch (error: any) {
-      assert.equal(error.message, 'token_unavailable')
+      assert.instanceOf(error, MetaTokenUnavailableError)
+
+      const meta = await IntegrationMetadata.query().firstOrFail()
+      assert.equal(meta.syncStatus, SyncStatus.ERROR)
+      assert.equal(meta.lastError, 'token_unavailable')
     }
 
     // Отсутствие даты
@@ -172,8 +181,13 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
     const service2 = new YandexSyncService(api2)
     try {
       await service2.sync()
+      assert.fail('Должна быть ошибка MetaSyncStartDateUnavailableError')
     } catch (error: any) {
-      assert.equal(error.message, 'sync_start_date_unavailable')
+      assert.instanceOf(error, MetaSyncStartDateUnavailableError)
+
+      const meta = await IntegrationMetadata.query().firstOrFail()
+      assert.equal(meta.syncStatus, SyncStatus.ERROR)
+      assert.equal(meta.lastError, 'sync_start_date_unavailable')
     }
   })
 })
