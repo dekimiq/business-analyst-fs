@@ -5,8 +5,13 @@ export interface SyncJobPayload {
   source: string
 }
 
+/**
+ * Job синхронизации данных из внешних источников.
+ *
+ * Использует DI для получения сервисов из IoC-контейнера.
+ * Orchestrator создаёт sync-сервисы динамически на основе токена из IntegrationMetadata.
+ */
 export default class SyncJob {
-  private orchestrator = new SyncOrchestratorService()
   static get options() {
     return {
       removeOnFail: true,
@@ -15,13 +20,22 @@ export default class SyncJob {
     }
   }
 
+  /**
+   * Обрабатывает задачу синхронизации для указанного источника.
+   *
+   * @param payload - содержит source ('yandex', 'amocrm', etc)
+   */
   async handle(payload: SyncJobPayload) {
+    // Получаем сервисы из IoC-контейнера
+    const orchestrator = await SyncOrchestratorService.init()
     const logger = new SyncLoggerService(payload.source)
-    const service = this.orchestrator.getService(payload.source)
+
+    // Получаем сервис синхронизации для указанного источника
+    const service = await orchestrator.getService(payload.source)
 
     if (!service) {
       await logger.error(
-        `SyncService для источника '${payload.source}' не зарегистрирован в Orchestrator`
+        `SyncService для источника '${payload.source}' не зарегистрирован или недоступен (нет токена)`
       )
       return
     }
