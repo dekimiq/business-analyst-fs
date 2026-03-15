@@ -1,2 +1,7 @@
 import { configApp } from '@adonisjs/eslint-config'
-export default configApp()
+
+export default configApp({
+  namingConvention: {
+    ignoreInterfacesThatStartWith: ['I'],
+  },
+})
