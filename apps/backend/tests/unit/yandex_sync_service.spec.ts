@@ -30,7 +30,7 @@ async function setupMeta(overrides: Partial<IntegrationMetadata> = {}) {
       ? overrides.syncStartDate
       : DateTime.now().minus({ days: 30 }).startOf('day')
   meta.syncedUntil = overrides.syncedUntil ?? null
-  meta.lastSuccessSyncAt = overrides.lastSuccessSyncAt ?? null
+  meta.lastSuccessSyncDate = overrides.lastSuccessSyncDate ?? null
   meta.syncStatus = overrides.syncStatus ?? null
   meta.lastError = overrides.lastError ?? null
   await meta.save()
