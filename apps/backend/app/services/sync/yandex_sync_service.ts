@@ -19,7 +19,7 @@ import {
   SyncError,
 } from '#exceptions/sync_exceptions'
 import { YandexRetryService } from '#utils/yandex_retry'
-import type { ISyncService } from '@project/shared'
+import type { ISyncService } from '#contracts/i_sync_service'
 import { SyncLoggerService } from '#services/sync/sync_logger_service'
 
 const SOURCE = 'yandex'

@@ -1,7 +1,7 @@
 import IntegrationMetadata from '#models/integration_metadata'
 import { YandexSyncService } from '#services/sync/yandex_sync_service'
 import { YandexApiClient } from '#services/yandex/yandex_api_client'
-import type { ISyncService } from '@project/shared'
+import type { ISyncService } from '#contracts/i_sync_service'
 import type { SyncLoggerService } from '#services/sync/sync_logger_service'
 
 /**

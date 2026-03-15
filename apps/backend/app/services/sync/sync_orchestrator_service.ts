@@ -1,4 +1,4 @@
-import type { ISyncService } from '@project/shared'
+import type { ISyncService } from '#contracts/i_sync_service'
 import { SyncLoggerService } from '#services/sync/sync_logger_service'
 import { SyncServiceFactory } from '#services/sync/sync_service_factory'
 
