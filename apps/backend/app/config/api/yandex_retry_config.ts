@@ -1,4 +1,4 @@
-import type { IRetryConfig } from '@project/shared'
+import type { IRetryConfig } from '#types/retry'
 
 /**
  * Custom Yandex API Error Body structure, commonly returned alongside 200 HTTP status
