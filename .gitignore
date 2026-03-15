@@ -7,3 +7,6 @@ coverage
 .DS_Store
 .clinerules
 .adonisjs
+.continue
+.vscode
+.agents
