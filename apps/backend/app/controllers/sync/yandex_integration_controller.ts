@@ -112,7 +112,7 @@ export default class YandexIntegrationController {
         lastTimestamp: null,
         syncStartDate: null,
         syncedUntil: null,
-        lastSuccessSyncAt: null,
+        lastSuccessSyncDate: null,
         syncStatus: null,
         referenceSyncPhase: null,
         lastError: null,
@@ -125,7 +125,7 @@ export default class YandexIntegrationController {
       lastTimestamp: metadata.lastTimestamp,
       syncStartDate: metadata.syncStartDate?.toISODate() ?? null,
       syncedUntil: metadata.syncedUntil?.toISODate() ?? null,
-      lastSuccessSyncAt: metadata.lastSuccessSyncAt?.toISO() ?? null,
+      lastSuccessSyncDate: metadata.lastSuccessSyncDate?.toISODate() ?? null,
       referenceSyncPhase: metadata.referenceSyncPhase,
       lastError: metadata.lastError,
     })
@@ -156,9 +156,6 @@ export default class YandexIntegrationController {
         message: 'Невозможно запустить синхронизацию: не указана дата начала синхронизации.',
       })
     }
-
-    // Removed check for PENDING/INITIALIZING because they are deleted from SyncStatus.
-    // Sync runs via cron (queue), so concurrent HTTP triggers aren't the primary way it runs anyway.
 
     const api = new YandexApiClient(metadata.token)
     const syncService = new YandexSyncService(api)

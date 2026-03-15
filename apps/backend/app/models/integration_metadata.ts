@@ -39,17 +39,14 @@ export default class IntegrationMetadata extends BaseModel {
   @column.date()
   declare syncedUntil: DateTime | null
 
-  /**
-   * Записывается только при успешном завершении синхронизации.
-   */
-  @column.dateTime()
-  declare lastSuccessSyncAt: DateTime | null
+  @column.date()
+  declare lastSuccessSyncDate: DateTime | null
 
   @column()
   declare syncStatus: SyncStatus | null
 
   @column()
-  declare referenceSyncPhase: ReferenceSyncPhase
+  declare referenceSyncPhase: ReferenceSyncPhase | null
 
   @column()
   declare lastError: string | null

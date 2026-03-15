@@ -6,6 +6,7 @@ import Ad from '#models/ad'
 import DailyStat from '#models/daily_stat'
 import IntegrationMetadata, { ReferenceSyncPhase, SyncStatus } from '#models/integration_metadata'
 import type { IYandexApiClient } from '#contracts/i_yandex_api_client'
+import { yesterdayInBusinessTz, daysAgoInBusinessTz } from '@project/shared/utils'
 import {
   ApiAuthError,
   ApiFatalError,
@@ -75,12 +76,12 @@ export class YandexSyncService implements ISyncService {
 
         const startDay = meta.syncedUntil
           ? meta.syncedUntil.minus({ days: 1 })
-          : DateTime.now().minus({ days: 1 }).startOf('day')
+          : yesterdayInBusinessTz()
 
         await this.syncDailyStatsBackwards(startDay, meta.syncStartDate, meta)
 
         meta.syncStatus = SyncStatus.SUCCESS
-        meta.lastSuccessSyncAt = DateTime.now()
+        meta.lastSuccessSyncDate = yesterdayInBusinessTz()
         meta.lastError = null
         await meta.save()
         this.logger.info('Первоначальная синхронизация завершена успешно')
@@ -99,12 +100,12 @@ export class YandexSyncService implements ISyncService {
 
         const startDay = meta.syncedUntil
           ? meta.syncedUntil.minus({ days: 1 })
-          : DateTime.now().minus({ days: 1 }).startOf('day')
+          : yesterdayInBusinessTz()
 
         await this.syncDailyStatsBackwards(startDay, meta.syncStartDate, meta)
 
         meta.syncStatus = SyncStatus.SUCCESS
-        meta.lastSuccessSyncAt = DateTime.now()
+        meta.lastSuccessSyncDate = yesterdayInBusinessTz()
         meta.lastError = null
         await meta.save()
         this.logger.info('Синхронизация возобновлена и успешно завершена')
@@ -157,7 +158,7 @@ export class YandexSyncService implements ISyncService {
       throw error
     }
 
-    const yesterday = DateTime.now().minus({ days: 1 }).startOf('day')
+    const yesterday = yesterdayInBusinessTz()
     let dateFrom: DateTime
     const dateTo: DateTime = yesterday
 
@@ -167,7 +168,7 @@ export class YandexSyncService implements ISyncService {
         `Обнаружены изменения. Период загрузки ${dateFrom.toISODate()} - ${dateTo.toISODate()}`
       )
     } else {
-      dateFrom = DateTime.now().minus({ days: 3 }).startOf('day')
+      dateFrom = daysAgoInBusinessTz(3)
       this.logger.info(
         `Изменений не обнаружено. Период активной загрузки ${dateFrom.toISODate()} - ${dateTo.toISODate()}`
       )
@@ -177,9 +178,9 @@ export class YandexSyncService implements ISyncService {
       dateFrom = dateTo
     }
 
-    await this.syncDailyStatsForPeriod(dateFrom, dateTo)
+    await this.syncDailyStatsForPeriod(dateFrom, dateTo, meta)
     meta.lastTimestamp = newTimestamp
-    meta.lastSuccessSyncAt = DateTime.now()
+    meta.lastSuccessSyncDate = yesterdayInBusinessTz()
     await meta.save()
 
     this.logger.info(`Ежедневная синхронизация завершена. Новая временная метка: ${newTimestamp}`)
@@ -354,12 +355,12 @@ export class YandexSyncService implements ISyncService {
       const periodStart = rawStart < hardLimit ? hardLimit : rawStart
 
       this.logger.info(
-        `Попытка загрузки преиода в ${periodStart.toISODate()} – ${periodEnd.toISODate()} (${stepDays} дней)`
+        `Попытка загрузки периода в ${periodStart.toISODate()} – ${periodEnd.toISODate()} (${stepDays} дней)`
       )
 
       try {
-        await this.syncDailyStatsForPeriod(periodStart, periodEnd)
-        meta.syncedUntil = periodStart
+        await this.syncDailyStatsForPeriod(periodStart, periodEnd, meta)
+        meta.lastSuccessSyncDate = yesterdayInBusinessTz()
         await meta.save()
 
         this.logger.info(
@@ -384,11 +385,12 @@ export class YandexSyncService implements ISyncService {
     }
   }
 
-  private async syncDailyStatsForPeriod(dateFrom: DateTime, dateTo: DateTime): Promise<void> {
-    const response = await YandexRetryService.call(() =>
-      this.api.getDailyStats({ dateFrom, dateTo })
-    )
-    const stats = response as any
+  private async syncDailyStatsForPeriod(
+    dateFrom: DateTime,
+    dateTo: DateTime,
+    meta: IntegrationMetadata
+  ): Promise<void> {
+    const stats = await YandexRetryService.call(() => this.api.getDailyStats({ dateFrom, dateTo }))
 
     if (stats.length === 0) return
 
@@ -416,6 +418,10 @@ export class YandexSyncService implements ISyncService {
           { client: trx }
         )
       }
+
+      meta.syncedUntil = dateFrom
+      meta.useTransaction(trx)
+      await meta.save()
     })
   }
 
@@ -431,10 +437,10 @@ export class YandexSyncService implements ISyncService {
         lastTimestamp: null,
         syncStartDate: null,
         syncedUntil: null,
-        lastSuccessSyncAt: null,
+        lastSuccessSyncDate: null,
         syncStatus: null,
         lastError: null,
-        referenceSyncPhase: ReferenceSyncPhase.CAMPAIGNS,
+        referenceSyncPhase: null,
       }
     )
   }
