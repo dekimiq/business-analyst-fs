@@ -340,8 +340,10 @@ export class YandexSyncService implements ISyncService {
     let periodEnd = startDay
 
     while (periodEnd >= endDay) {
-      await this.syncPeriodAdaptive(periodEnd, endDay, meta)
-      periodEnd = meta.syncedUntil!.minus({ days: 1 })
+      const periodStart = await this.syncPeriodAdaptive(periodEnd, endDay, meta)
+
+      await meta.refresh()
+      periodEnd = periodStart ? periodStart.minus({ days: 1 }) : yesterdayInBusinessTz()
     }
   }
 
@@ -349,7 +351,7 @@ export class YandexSyncService implements ISyncService {
     periodEnd: DateTime,
     hardLimit: DateTime,
     meta: IntegrationMetadata
-  ): Promise<void> {
+  ): Promise<DateTime> {
     for (const stepDays of PERIOD_STEPS_DAYS) {
       const rawStart = periodEnd.minus({ days: stepDays - 1 }).startOf('day')
       const periodStart = rawStart < hardLimit ? hardLimit : rawStart
@@ -366,7 +368,7 @@ export class YandexSyncService implements ISyncService {
         this.logger.info(
           `Успешно загруженный период: ${periodStart.toISODate()} – ${periodEnd.toISODate()}`
         )
-        return
+        return periodStart
       } catch (error: any) {
         if (error instanceof ApiRetryExhaustedError || error instanceof ApiReportUnpossible) {
           if (stepDays === PERIOD_STEPS_DAYS[PERIOD_STEPS_DAYS.length - 1]) {
@@ -383,6 +385,9 @@ export class YandexSyncService implements ISyncService {
         throw error
       }
     }
+
+    // Эта строка никогда не должна быть достигнута
+    throw new Error('Не удалось загрузить данные ни на одном периоде')
   }
 
   private async syncDailyStatsForPeriod(
