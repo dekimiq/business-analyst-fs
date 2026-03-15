@@ -13,7 +13,7 @@ export default class extends BaseSchema {
 
       table.date('synced_until').nullable()
 
-      table.timestamp('last_success_sync_at').nullable()
+      table.timestamp('last_success_sync_date').nullable()
 
       table.string('sync_status', 20).nullable().comment('partial | success | error | null')
       table
