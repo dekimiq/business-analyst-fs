@@ -36,28 +36,6 @@ export class YandexSyncService implements ISyncService {
   // -------------------------------------------------------------------------
   // PUBLIC: ISyncService Implementation
   // -------------------------------------------------------------------------
-
-  async isReady(): Promise<boolean> {
-    const meta = await this.getMeta()
-    return !!meta.token && !!meta.syncStartDate
-  }
-
-  async getDataAvailability(): Promise<{ availableUntil: 'none' | 'all' | string }> {
-    const meta = await this.getMeta()
-
-    if (!meta.syncStatus) {
-      return { availableUntil: 'none' }
-    }
-
-    const isInterrupted = [SyncStatus.ERROR, SyncStatus.PARTIAL].includes(meta.syncStatus)
-
-    if (isInterrupted && meta.syncedUntil) {
-      return { availableUntil: meta.syncedUntil.toISODate()! }
-    }
-
-    return { availableUntil: 'all' }
-  }
-
   async sync(): Promise<void> {
     const meta = await this.getMeta()
 
@@ -352,8 +330,6 @@ export class YandexSyncService implements ISyncService {
   private async syncStructuralData(meta: IntegrationMetadata): Promise<void> {
     return this.asyncSyncStructuralData(meta)
   }
-
-  // NEXT STEP: Дочитать дальше <----------------------------------------------------------------------------
 
   private async syncDailyStatsBackwards(
     startDay: DateTime,
