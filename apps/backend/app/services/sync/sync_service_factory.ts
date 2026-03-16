@@ -1,6 +1,8 @@
 import IntegrationMetadata from '#models/integration_metadata'
 import { YandexSyncService } from '#services/sync/yandex_sync_service'
 import { YandexApiClient } from '#services/yandex/yandex_api_client'
+import { AmocrmSyncService } from '#services/sync/amocrm_sync_service'
+import { AmocrmApiClient } from '#services/amocrm/amocrm_api_client'
 import type { ISyncService } from '#contracts/i_sync_service'
 import type { SyncLoggerService } from '#services/sync/sync_logger_service'
 
@@ -35,10 +37,10 @@ export class SyncServiceFactory {
         return new YandexSyncService(apiClient)
       }
 
-      case 'amocrm':
-        // AmoCRM ещё не реализован
-        await this.logger.warn(`SyncServiceFactory: AmoCRM ещё не реализован`)
-        return null
+      case 'amocrm': {
+        const apiClient = new AmocrmApiClient(meta.token, meta.config || {})
+        return new AmocrmSyncService(apiClient)
+      }
 
       default:
         await this.logger.warn(`SyncServiceFactory: неизвестный источник '${source}'`)
