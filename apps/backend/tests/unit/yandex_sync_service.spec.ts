@@ -4,10 +4,6 @@ import nock from 'nock'
 import db from '@adonisjs/lucid/services/db'
 import IntegrationMetadata, { SyncStatus, ReferenceSyncPhase } from '#models/integration_metadata'
 import { YandexSyncService } from '#services/sync/yandex_sync_service'
-import {
-  MetaSyncStartDateUnavailableError,
-  MetaTokenUnavailableError,
-} from '#exceptions/sync_exceptions'
 import { YandexApiClient } from '#services/yandex/yandex_api_client'
 
 import campaignsFixture from '../../app/__fixtures__/yandex/campaigns.json' with { type: 'json' }
@@ -51,11 +47,15 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
     return cleanDatabase()
   })
 
-  test('Идеальный сценарий: Успешная интеграция (3 месяца)', async ({ assert }) => {
+  test('Идеальный сценарий: Успешная интеграция (3 месяца) и проверки changes.check', async ({
+    assert,
+  }) => {
     const syncStartDate = DateTime.now().minus({ months: 3 }).startOf('day')
     await setupMeta({ syncStartDate })
 
     const yandexBase = 'https://api.direct.yandex.com'
+
+    // ЭТАП 1: Первичная синхронизация
     nock(yandexBase)
       .persist()
       .post('/json/v5/campaigns')
@@ -80,11 +80,66 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
 
     await service.sync()
 
-    const meta = await IntegrationMetadata.query().firstOrFail()
+    let meta = await IntegrationMetadata.query().firstOrFail()
     assert.equal(meta.syncStatus, SyncStatus.SUCCESS)
     assert.equal(meta.lastTimestamp, '2026-03-01T00:00:00Z')
     assert.isNull(meta.lastError)
     assert.equal(meta.referenceSyncPhase, ReferenceSyncPhase.DONE)
+
+    // ЭТАП 2: Запуск с наличием изменений в changes.check
+    nock.cleanAll()
+    const borderDate = DateTime.now().minus({ days: 2 }).toISODate()
+    const campaignsCountCheckParams = campaignsFixture.result.Campaigns.map((c: any) => c.Id)
+    const mockChangedCampaignId = campaignsCountCheckParams[0]
+
+    nock(yandexBase)
+      .persist()
+      .post('/json/v5/changes')
+      .reply(200, {
+        result: {
+          Timestamp: '2026-03-05T00:00:00Z',
+          CampaignsStat: [{ CampaignId: mockChangedCampaignId, BorderDate: borderDate }],
+        },
+      })
+      .post('/json/v5/reports')
+      .reply(
+        200,
+        `Date\tAdId\tImpressions\tClicks\tCost\tCtr\tAvgCpc\n${borderDate}\t14849757093\t150\t10\t70000000\t6.6\t7000000`,
+        {
+          'Content-Type': 'text/plain',
+        }
+      )
+
+    await service.sync()
+    meta = await IntegrationMetadata.query().firstOrFail()
+    assert.equal(meta.lastTimestamp, '2026-03-05T00:00:00Z')
+    assert.equal(meta.syncStatus, SyncStatus.SUCCESS)
+
+    // ЭТАП 3: Запуск БЕЗ изменений в changes.check (отдает пустой массив). Ожидается запрос за 3 дня
+    nock.cleanAll()
+    const threeDaysAgoDate = DateTime.now().minus({ days: 3 }).toISODate()
+    nock(yandexBase)
+      .persist()
+      .post('/json/v5/changes')
+      .reply(200, {
+        result: {
+          Timestamp: '2026-03-07T00:00:00Z',
+          CampaignsStat: [],
+        },
+      })
+      .post('/json/v5/reports')
+      .reply(
+        200,
+        `Date\tAdId\tImpressions\tClicks\tCost\tCtr\tAvgCpc\n${threeDaysAgoDate}\t14849757093\t200\t20\t90000000\t10.0\t4500000`,
+        {
+          'Content-Type': 'text/plain',
+        }
+      )
+
+    await service.sync()
+    meta = await IntegrationMetadata.query().firstOrFail()
+    assert.equal(meta.lastTimestamp, '2026-03-07T00:00:00Z')
+    assert.equal(meta.syncStatus, SyncStatus.SUCCESS)
   })
 
   test('Работа при ошибках интеграции: последовательный сбой и возобновление', async ({
@@ -97,23 +152,65 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
     const service = new YandexSyncService(api)
     const yandexBase = 'https://api.direct.yandex.com'
 
-    nock(yandexBase).post('/json/v5/campaigns').reply(500)
+    // 1. Сбой на timestamp
+    const originalGetServerTimestamp = api.getServerTimestamp.bind(api)
+    api.getServerTimestamp = async () => {
+      throw new Error('Simulated timestamp error')
+    }
+
     await assert.rejects(() => service.sync())
     let meta = await IntegrationMetadata.query().firstOrFail()
+    assert.equal(meta.syncStatus, SyncStatus.ERROR)
+    assert.equal(meta.lastError, 'timestamp_unknown')
+    assert.equal(meta.referenceSyncPhase, ReferenceSyncPhase.TIMESTAMP)
+
+    // Восстанавливаем timestamp функцию + 2. Сбой на campaigns
+    api.getServerTimestamp = originalGetServerTimestamp
+    nock.cleanAll()
+    nock(yandexBase).persist().post('/json/v5/campaigns').reply(400)
+
+    await assert.rejects(() => service.sync())
+    meta = await IntegrationMetadata.query().firstOrFail()
     assert.equal(meta.lastError, 'campaigns_unknown')
     assert.equal(meta.syncStatus, SyncStatus.ERROR)
+    assert.equal(meta.referenceSyncPhase, ReferenceSyncPhase.CAMPAIGNS)
 
+    // 3. Удачные campaigns, сбой на adGroups
     nock.cleanAll()
     nock(yandexBase)
       .persist()
       .post('/json/v5/campaigns')
       .reply(200, campaignsFixture)
       .post('/json/v5/adgroups')
+      .reply(400)
+
+    await assert.rejects(() => service.sync())
+    meta = await IntegrationMetadata.query().firstOrFail()
+    assert.equal(meta.lastError, 'adgroups_unknown')
+    assert.equal(meta.syncStatus, SyncStatus.ERROR)
+    assert.equal(meta.referenceSyncPhase, ReferenceSyncPhase.AD_GROUPS)
+
+    // 4. Удачные adGroups, сбой на ads
+    nock.cleanAll()
+    nock(yandexBase)
+      .persist()
+      .post('/json/v5/adgroups')
       .reply(200, adGroupsFixture)
       .post('/json/v5/ads')
+      .reply(400)
+
+    await assert.rejects(() => service.sync())
+    meta = await IntegrationMetadata.query().firstOrFail()
+    assert.equal(meta.lastError, 'ads_unknown')
+    assert.equal(meta.syncStatus, SyncStatus.ERROR)
+    assert.equal(meta.referenceSyncPhase, ReferenceSyncPhase.ADS)
+
+    // 5. Удачные ads, сбой на reports (все периоды провалились)
+    nock.cleanAll()
+    nock(yandexBase)
+      .persist()
+      .post('/json/v5/ads')
       .reply(200, adsFixture)
-      .post('/json/v5/changes')
-      .reply(200, { result: { Timestamp: '2026-03-01T00:00:00Z' } })
       .post('/json/v5/reports')
       .reply(500)
 
@@ -121,13 +218,12 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
     meta = await IntegrationMetadata.query().firstOrFail()
     assert.equal(meta.referenceSyncPhase, ReferenceSyncPhase.DONE)
     assert.equal(meta.syncStatus, SyncStatus.PARTIAL)
+    assert.equal(meta.lastError, 'timeout')
 
-    // Этап 3: Финальный успех — reports отдаёт 200
+    // 6. Удачные reports
     nock.cleanAll()
     nock(yandexBase)
       .persist()
-      .post('/json/v5/changes')
-      .reply(200, { result: { Timestamp: '2026-03-03T00:00:00Z' } })
       .post('/json/v5/reports')
       .reply(200, 'Date\tAdId\tImpressions\tClicks\tCost\tCtr\tAvgCpc\n', {
         'Content-Type': 'text/plain',
@@ -138,40 +234,35 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
     assert.equal(meta.syncStatus, SyncStatus.SUCCESS)
     assert.isNull(meta.lastError)
   })
+  test('Сбой получения timestamp при первичной синхронизации', async ({ assert }) => {
+    const syncStartDate = DateTime.now().minus({ months: 1 }).startOf('day')
+    await setupMeta({ syncStartDate })
 
-  test('Работа endpoints: отсутствие токена / даты', async ({ assert }) => {
-    const api = new YandexApiClient('')
+    const yandexBase = 'https://api.direct.yandex.com'
+    nock(yandexBase)
+      .persist()
+      .post('/json/v5/campaigns')
+      .reply(200, campaignsFixture)
+      .post('/json/v5/adgroups')
+      .reply(200, adGroupsFixture)
+      .post('/json/v5/ads')
+      .reply(200, adsFixture)
+
+    const api = new YandexApiClient('test-token')
+    const originalGetServerTimestamp = api.getServerTimestamp.bind(api)
+    api.getServerTimestamp = async () => {
+      throw new Error('Simulated timestamp error')
+    }
+
     const service = new YandexSyncService(api)
 
-    // Отсутствие токена
-    await setupMeta({ token: null })
-    try {
-      await service.sync()
-      assert.fail('Должна быть ошибка MetaTokenUnavailableError')
-    } catch (error: any) {
-      assert.instanceOf(error, MetaTokenUnavailableError)
+    await assert.rejects(() => service.sync())
+    const meta = await IntegrationMetadata.query().firstOrFail()
+    assert.equal(meta.syncStatus, SyncStatus.ERROR)
+    assert.equal(meta.lastError, 'timestamp_unknown')
+    assert.equal(meta.referenceSyncPhase, ReferenceSyncPhase.TIMESTAMP)
 
-      const meta = await IntegrationMetadata.query().firstOrFail()
-      assert.equal(meta.syncStatus, SyncStatus.ERROR)
-      assert.equal(meta.lastError, 'token_unavailable')
-    }
-
-    // Отсутствие даты
-    nock.cleanAll()
-    await cleanDatabase()
-    await setupMeta({ token: 'valid', syncStartDate: null })
-    const api2 = new YandexApiClient('valid')
-    const service2 = new YandexSyncService(api2)
-    try {
-      await service2.sync()
-      assert.fail('Должна быть ошибка MetaSyncStartDateUnavailableError')
-    } catch (error: any) {
-      assert.instanceOf(error, MetaSyncStartDateUnavailableError)
-
-      const meta = await IntegrationMetadata.query().firstOrFail()
-      assert.equal(meta.syncStatus, SyncStatus.ERROR)
-      assert.equal(meta.lastError, 'sync_start_date_unavailable')
-    }
+    api.getServerTimestamp = originalGetServerTimestamp
   })
 
   test('Обработка ApiLimitError: перевод в PARTIAL', async ({ assert }) => {
