@@ -8,6 +8,7 @@ export enum SyncStatus {
 }
 
 export enum ReferenceSyncPhase {
+  TIMESTAMP = 'timestamp',
   CAMPAIGNS = 'campaigns',
   AD_GROUPS = 'adGroups',
   ADS = 'ads',
@@ -21,7 +22,7 @@ export default class IntegrationMetadata extends BaseModel {
   declare id: number
 
   @column()
-  declare source: 'yandex' | 'amocrm'
+  declare source: string
 
   @column()
   declare token: string | null
@@ -32,10 +33,6 @@ export default class IntegrationMetadata extends BaseModel {
   @column.date()
   declare syncStartDate: DateTime | null
 
-  /**
-   * Дата, до которой данные загружены (включительно).
-   * Обновляется после каждого успешного периода загрузки.
-   */
   @column.date()
   declare syncedUntil: DateTime | null
 
@@ -50,6 +47,9 @@ export default class IntegrationMetadata extends BaseModel {
 
   @column()
   declare lastError: string | null
+
+  @column({ serializeAs: null })
+  declare config: Record<string, any> | null
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

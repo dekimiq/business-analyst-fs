@@ -6,7 +6,6 @@ import Ad from '#models/ad'
 import DailyStat from '#models/daily_stat'
 import IntegrationMetadata, { ReferenceSyncPhase, SyncStatus } from '#models/integration_metadata'
 import type { IYandexApiClient } from '#contracts/i_yandex_api_client'
-import { yesterdayInBusinessTz, daysAgoInBusinessTz } from '@project/shared/utils'
 import {
   ApiAuthError,
   ApiFatalError,
@@ -22,6 +21,7 @@ import {
 import { YandexRetryService } from '#utils/yandex_retry'
 import type { ISyncService } from '#contracts/i_sync_service'
 import { SyncLoggerService } from '#services/sync/sync_logger_service'
+import { yesterdayUtc, daysAgoUtc } from '#utils/date_utils'
 
 const SOURCE = 'yandex'
 const PERIOD_STEPS_DAYS = [30, 14, 7] as const
@@ -51,18 +51,22 @@ export class YandexSyncService implements ISyncService {
         throw new MetaSyncStartDateUnavailableError()
       }
 
-      if (meta.syncStatus === null) {
-        // --- Structural Data ---
-        if (meta.referenceSyncPhase !== ReferenceSyncPhase.DONE) {
-          await db.transaction(async (trx) => {
-            meta.useTransaction(trx)
-            await this.syncStructuralData(meta)
-          })
-          await meta.refresh()
+      const isInitialSync = meta.syncStatus === null
+      const isResuming =
+        meta.syncStatus === SyncStatus.ERROR || meta.syncStatus === SyncStatus.PARTIAL
+
+      if (isInitialSync || isResuming) {
+        if (isResuming) {
+          this.logger.info(`Возобновление синхронизации из состояния: ${meta.syncStatus}`)
         }
 
         // --- Initial Timestamp ---
         if (!meta.lastTimestamp) {
+          if (!meta.referenceSyncPhase) {
+            meta.referenceSyncPhase = ReferenceSyncPhase.TIMESTAMP
+            await meta.save()
+          }
+
           try {
             const timestampResponse = await YandexRetryService.call(() =>
               this.api.getServerTimestamp()
@@ -74,41 +78,27 @@ export class YandexSyncService implements ISyncService {
           }
         }
 
-        const startDay = meta.syncedUntil
-          ? meta.syncedUntil.minus({ days: 1 })
-          : yesterdayInBusinessTz()
-
-        await this.syncDailyStatsBackwards(startDay, meta.syncStartDate, meta)
-
-        meta.syncStatus = SyncStatus.SUCCESS
-        meta.lastSuccessSyncDate = yesterdayInBusinessTz()
-        meta.lastError = null
-        await meta.save()
-        this.logger.info('Первоначальная синхронизация завершена успешно')
-      } else if (meta.syncStatus === SyncStatus.SUCCESS) {
-        await this.dailySync(meta)
-      } else if (meta.syncStatus === SyncStatus.ERROR || meta.syncStatus === SyncStatus.PARTIAL) {
-        this.logger.info(`Возобновление синхронизации из состояния: ${meta.syncStatus}`)
-
+        // --- Structural Data ---
         if (meta.referenceSyncPhase !== ReferenceSyncPhase.DONE) {
-          await db.transaction(async (trx) => {
-            meta.useTransaction(trx)
-            await this.syncStructuralData(meta)
-          })
-          await meta.refresh()
+          await this.syncStructuralData(meta)
         }
 
-        const startDay = meta.syncedUntil
-          ? meta.syncedUntil.minus({ days: 1 })
-          : yesterdayInBusinessTz()
+        const startDay = meta.syncedUntil ? meta.syncedUntil.minus({ days: 1 }) : yesterdayUtc()
 
         await this.syncDailyStatsBackwards(startDay, meta.syncStartDate, meta)
 
         meta.syncStatus = SyncStatus.SUCCESS
-        meta.lastSuccessSyncDate = yesterdayInBusinessTz()
+        meta.lastSuccessSyncDate = yesterdayUtc()
         meta.lastError = null
         await meta.save()
-        this.logger.info('Синхронизация возобновлена и успешно завершена')
+
+        if (isInitialSync) {
+          this.logger.info('Первоначальная синхронизация завершена успешно')
+        } else {
+          this.logger.info('Синхронизация возобновлена и успешно завершена')
+        }
+      } else if (meta.syncStatus === SyncStatus.SUCCESS) {
+        await this.dailySync(meta)
       }
     } catch (error) {
       await this.handleSyncError(meta, error)
@@ -158,17 +148,17 @@ export class YandexSyncService implements ISyncService {
       throw error
     }
 
-    const yesterday = yesterdayInBusinessTz()
+    const yesterday = yesterdayUtc()
     let dateFrom: DateTime
     const dateTo: DateTime = yesterday
 
     if (borderDateStr) {
-      dateFrom = DateTime.fromISO(borderDateStr, { zone: 'Europe/Moscow' }).startOf('day')
+      dateFrom = DateTime.fromISO(borderDateStr).toUTC().startOf('day')
       this.logger.info(
         `Обнаружены изменения. Период загрузки ${dateFrom.toISODate()} - ${dateTo.toISODate()}`
       )
     } else {
-      dateFrom = daysAgoInBusinessTz(3)
+      dateFrom = daysAgoUtc(3)
       this.logger.info(
         `Изменений не обнаружено. Период активной загрузки ${dateFrom.toISODate()} - ${dateTo.toISODate()}`
       )
@@ -180,7 +170,7 @@ export class YandexSyncService implements ISyncService {
 
     await this.syncDailyStatsForPeriod(dateFrom, dateTo, meta)
     meta.lastTimestamp = newTimestamp
-    meta.lastSuccessSyncDate = yesterdayInBusinessTz()
+    meta.lastSuccessSyncDate = yesterdayUtc()
     await meta.save()
 
     this.logger.info(`Ежедневная синхронизация завершена. Новая временная метка: ${newTimestamp}`)
@@ -192,12 +182,17 @@ export class YandexSyncService implements ISyncService {
   }
 
   private async asyncSyncStructuralData(meta: IntegrationMetadata): Promise<void> {
+    if (!meta.referenceSyncPhase || meta.referenceSyncPhase === ReferenceSyncPhase.TIMESTAMP) {
+      meta.referenceSyncPhase = ReferenceSyncPhase.CAMPAIGNS
+      await meta.save()
+    }
+
     this.logger.info(
       `Синхронизация структурных данных. Текущая фаза в БД: ${meta.referenceSyncPhase}`
     )
 
     // --- Campaigns ---
-    if (!meta.referenceSyncPhase || meta.referenceSyncPhase === ReferenceSyncPhase.CAMPAIGNS) {
+    if (meta.referenceSyncPhase === ReferenceSyncPhase.CAMPAIGNS) {
       try {
         await db.transaction(async (trx) => {
           const campaigns = await YandexRetryService.call(() => this.api.getCampaigns())
@@ -343,7 +338,7 @@ export class YandexSyncService implements ISyncService {
       const periodStart = await this.syncPeriodAdaptive(periodEnd, endDay, meta)
 
       await meta.refresh()
-      periodEnd = periodStart ? periodStart.minus({ days: 1 }) : yesterdayInBusinessTz()
+      periodEnd = periodStart ? periodStart.minus({ days: 1 }) : yesterdayUtc()
     }
   }
 
@@ -362,7 +357,7 @@ export class YandexSyncService implements ISyncService {
 
       try {
         await this.syncDailyStatsForPeriod(periodStart, periodEnd, meta)
-        meta.lastSuccessSyncDate = yesterdayInBusinessTz()
+        meta.lastSuccessSyncDate = yesterdayUtc()
         await meta.save()
 
         this.logger.info(

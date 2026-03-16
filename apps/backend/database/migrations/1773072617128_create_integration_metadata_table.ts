@@ -19,8 +19,9 @@ export default class extends BaseSchema {
       table
         .string('reference_sync_phase', 20)
         .nullable()
-        .comment('campaigns | adGroups | ads | done')
+        .comment('timestamp | campaigns | adGroups | ads | done')
       table.text('last_error').nullable()
+      table.jsonb('config').nullable()
 
       table.timestamp('created_at')
       table.timestamp('updated_at')
