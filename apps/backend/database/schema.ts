@@ -106,6 +106,93 @@ export class CampaignSchema extends BaseModel {
   declare updatedAt: DateTime | null
 }
 
+export class CrmRecordSchema extends BaseModel {
+  static $columns = [
+    'adId',
+    'budget',
+    'campaignId',
+    'city',
+    'comment',
+    'companyName',
+    'createdAt',
+    'dealId',
+    'dealName',
+    'dealStage',
+    'groupId',
+    'id',
+    'price',
+    'product',
+    'recordClosedTaskAt',
+    'recordCreatedAt',
+    'recordCreatedByName',
+    'recordNextTaskAt',
+    'recordUpdatedAt',
+    'recordUpdatedByName',
+    'referrer',
+    'region',
+    'saleFunnel',
+    'source',
+    'tagDeal',
+    'updatedAt',
+    'website',
+  ] as const
+  $columns = CrmRecordSchema.$columns
+  @column()
+  declare adId: bigint | number | null
+  @column()
+  declare budget: string | null
+  @column()
+  declare campaignId: bigint | number | null
+  @column()
+  declare city: string | null
+  @column()
+  declare comment: string | null
+  @column()
+  declare companyName: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime | null
+  @column()
+  declare dealId: string | null
+  @column()
+  declare dealName: string | null
+  @column()
+  declare dealStage: string | null
+  @column()
+  declare groupId: bigint | number | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare price: string | null
+  @column()
+  declare product: string | null
+  @column.dateTime()
+  declare recordClosedTaskAt: DateTime | null
+  @column.dateTime()
+  declare recordCreatedAt: DateTime | null
+  @column()
+  declare recordCreatedByName: string | null
+  @column.dateTime()
+  declare recordNextTaskAt: DateTime | null
+  @column.dateTime()
+  declare recordUpdatedAt: DateTime | null
+  @column()
+  declare recordUpdatedByName: string | null
+  @column()
+  declare referrer: string | null
+  @column()
+  declare region: string | null
+  @column()
+  declare saleFunnel: string | null
+  @column()
+  declare source: string | null
+  @column()
+  declare tagDeal: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column()
+  declare website: string | null
+}
+
 export class DailyStatSchema extends BaseModel {
   static $columns = [
     'adId',
@@ -147,10 +234,11 @@ export class DailyStatSchema extends BaseModel {
 
 export class IntegrationMetadatumSchema extends BaseModel {
   static $columns = [
+    'config',
     'createdAt',
     'id',
     'lastError',
-    'lastSuccessSyncAt',
+    'lastSuccessSyncDate',
     'lastTimestamp',
     'referenceSyncPhase',
     'source',
@@ -161,6 +249,8 @@ export class IntegrationMetadatumSchema extends BaseModel {
     'updatedAt',
   ] as const
   $columns = IntegrationMetadatumSchema.$columns
+  @column()
+  declare config: any | null
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime | null
   @column({ isPrimary: true })
@@ -168,7 +258,7 @@ export class IntegrationMetadatumSchema extends BaseModel {
   @column()
   declare lastError: string | null
   @column.dateTime()
-  declare lastSuccessSyncAt: DateTime | null
+  declare lastSuccessSyncDate: DateTime | null
   @column()
   declare lastTimestamp: string | null
   @column()
