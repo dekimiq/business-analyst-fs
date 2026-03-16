@@ -11,21 +11,18 @@ const connection = {
   port: env.REDIS_PORT,
 }
 
-// sync queue maps to db:0 normally
 const syncQueue = new Queue('sync', {
   connection: { ...connection, db: env.REDIS_DB_BACKEND },
 })
 
-// reports queue maps to db:1
 const reportsQueue = new Queue('reports', {
   connection: { ...connection, db: env.REDIS_DB_BOT },
 })
 
-// Store active cron tasks so we can clear them on reload
 let activeTasks: cron.ScheduledTask[] = []
 
 /**
- * Clears all existing active scheduled tasks.
+ * Удаляет все существующие активные запланированные задачи.
  */
 function clearSchedules() {
   activeTasks.forEach((task) => task.stop())
@@ -33,8 +30,8 @@ function clearSchedules() {
 }
 
 /**
- * Common configuration for our BullMQ jobs:
- * `attempts: 1` -> do not retry on fail.
+ * Общая конфигурация для задач BullMQ:
+ * "попыток: 1" -> не повторять попытку в случае сбоя.
  */
 const jobOpts = {
   attempts: 1,
@@ -43,8 +40,8 @@ const jobOpts = {
 }
 
 /**
- * Periodically reads DB schedules, translates to UTC using env.TZ,
- * and recreates node-cron tasks.
+ * Периодически считывает расписания из базы данных, переводит в UTC,
+ * и заново создает задачи node-cron.
  */
 export async function reloadSchedules() {
   try {
@@ -60,27 +57,42 @@ export async function reloadSchedules() {
         continue
       }
 
-      // Convert local time to UTC
-      const { utcHour, utcMinute } = convertLocalTimeToUTC(parsed.hour, parsed.minute)
-
-      // Format cron expression: "Minute Hour * * DayOfWeek"
-      const currentDayOfWeek = schedule.day_of_week === null ? '*' : schedule.day_of_week
-      const cronExpression = `${utcMinute} ${utcHour} * * ${currentDayOfWeek}`
+      let cronExpression = ''
+      if (parsed.intervalStr) {
+        cronExpression = `${parsed.intervalStr} * * * *`
+      } else if (parsed.hour !== undefined && parsed.minute !== undefined) {
+        const { utcHour, utcMinute } = convertLocalTimeToUTC(parsed.hour, parsed.minute)
+        const currentDayOfWeek = schedule.day_of_week === null ? '*' : schedule.day_of_week
+        cronExpression = `${utcMinute} ${utcHour} * * ${currentDayOfWeek}`
+      } else {
+        console.error(
+          `[ERROR]: [ Node-Cron.reloadSchedules ] Unable to parse time for schedule ${schedule.name}`,
+        )
+        continue
+      }
 
       console.log(
         `[INFO]: [ Node-Cron.reloadSchedules ] Loaded ${schedule.name} at local ${schedule.time_hh_mm} (TZ: ${env.TZ}) -> UTC Cron: ${cronExpression}`,
       )
 
-      // Create new cron task
       const task = cron.schedule(
         cronExpression,
         async () => {
           console.log(`[INFO]: [ Node-Cron.job ] Trigger ${schedule.name}`)
           try {
             switch (schedule.name) {
-              case 'sync':
-                await syncQueue.add('sync_all', { trigger: 'cron' }, jobOpts)
+              case 'sync:crm':
+                await syncQueue.add('sync:crm', { source: 'amocrm' }, jobOpts)
                 break
+              case 'sync:ads': {
+                const metas = await db('integration_metadata')
+                  .select('source')
+                  .whereNot('source', 'amocrm')
+                for (const meta of metas) {
+                  await syncQueue.add(`sync:${meta.source}`, { source: meta.source }, jobOpts)
+                }
+                break
+              }
               case 'daily_report':
                 await reportsQueue.add('daily_report', { trigger: 'cron' }, jobOpts)
                 break
@@ -95,7 +107,7 @@ export async function reloadSchedules() {
           }
         },
         {
-          timezone: 'UTC', // We manually enforce UTC because we calculated exact UTC time above
+          timezone: 'UTC',
         },
       )
 

@@ -13,9 +13,6 @@ export const db = knex({
   searchPath: ['settings', 'public'],
 })
 
-/**
- * Interface representing schedule row in the database.
- */
 export interface ScheduleRecord {
   name: string
   time_hh_mm: string
@@ -23,10 +20,17 @@ export interface ScheduleRecord {
 }
 
 /**
- * Parses a HH:mm string to a valid hour and minute.
- * If invalid format - returns undefined.
+ * Преобразует строку HH:mm в допустимые часы и минуты.
+ * Если строка представляет интервал (например, каждые 5 минут), она возвращает его напрямую.
+ * Если неверный формат - возвращает значение undefined.
  */
-export function parseTime(timeStr: string): { hour: number; minute: number } | undefined {
+export function parseTime(
+  timeStr: string,
+): { hour?: number; minute?: number; intervalStr?: string } | undefined {
+  if (timeStr.startsWith('*/')) {
+    return { intervalStr: timeStr }
+  }
+
   const parts = timeStr.split(':')
   if (parts.length !== 2) return undefined
 

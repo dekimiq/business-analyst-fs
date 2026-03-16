@@ -9,10 +9,10 @@ export function convertLocalTimeToUTC(
   localHour: number,
   localMinute: number,
 ): { utcHour: number; utcMinute: number } {
-  const timeZone = env.TZ || 'UTC'
+  const timeZone = 'UTC' // Дефолт без кастомных TZ
   const now = new Date()
 
-  // Get current YYYY-MM-DD in the target Timezone to handle DST correctly
+  // Получить текущее значение YYYY-MM-DD в целевом часовом поясе для корректной обработки летнего времени
   const year = formatInTimeZone(now, timeZone, 'yyyy')
   const month = formatInTimeZone(now, timeZone, 'MM')
   const day = formatInTimeZone(now, timeZone, 'dd')
@@ -20,13 +20,11 @@ export function convertLocalTimeToUTC(
   const hh = String(localHour).padStart(2, '0')
   const mm = String(localMinute).padStart(2, '0')
 
-  // Construct ISO string without timezone indicator
+  // Построить строку ISO без индикатора часового пояса
   const dateString = `${year}-${month}-${day}T${hh}:${mm}:00`
 
-  // Intepret this string as occurring in the desired Timezone to find the Absolute UTC time
   const utcDate = fromZonedTime(dateString, timeZone)
 
-  // Now format the resulting Date object back to UTC hours and minutes
   const utcH = formatInTimeZone(utcDate, 'UTC', 'HH')
   const utcM = formatInTimeZone(utcDate, 'UTC', 'mm')
 
