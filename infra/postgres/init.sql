@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS settings.schedules (
 );
 
 INSERT INTO settings.schedules (name, time_hh_mm, day_of_week) VALUES
-('sync', '03:00', NULL),
+('sync:crm', '*/5', NULL),
+('sync:ads', '03:00', NULL),
 ('daily_report', '09:00', NULL),
 ('weekly_report', '10:00', 7)
 ON CONFLICT (name) DO NOTHING;
