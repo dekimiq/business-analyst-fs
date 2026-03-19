@@ -43,7 +43,7 @@ export class YandexSyncService implements ISyncService {
     this.logger.info(`Синхронизация запущена. Текущий статус: ${meta.syncStatus}`)
 
     try {
-      if (!meta.token) {
+      if (!meta.credentials?.long_token) {
         throw new MetaTokenUnavailableError()
       }
 
@@ -433,7 +433,6 @@ export class YandexSyncService implements ISyncService {
     return IntegrationMetadata.firstOrCreate(
       { source: SOURCE },
       {
-        token: null,
         lastTimestamp: null,
         syncStartDate: null,
         syncedUntil: null,
@@ -441,6 +440,7 @@ export class YandexSyncService implements ISyncService {
         syncStatus: null,
         lastError: null,
         referenceSyncPhase: null,
+        credentials: null,
       }
     )
   }

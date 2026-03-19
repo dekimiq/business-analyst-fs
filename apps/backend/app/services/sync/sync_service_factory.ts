@@ -26,19 +26,21 @@ export class SyncServiceFactory {
   async createService(source: string): Promise<ISyncService | null> {
     const meta = await IntegrationMetadata.findByOrFail({ source })
 
-    if (!meta.token) {
+    const credentials = meta.credentials || {}
+    const token = (credentials as any).long_token
+    if (!token) {
       await this.logger.warn(`SyncServiceFactory: токен для источника '${source}' не установлен`)
       return null
     }
 
     switch (source) {
       case 'yandex': {
-        const apiClient = new YandexApiClient(meta.token)
+        const apiClient = new YandexApiClient(token)
         return new YandexSyncService(apiClient)
       }
 
       case 'amocrm': {
-        const apiClient = new AmocrmApiClient(meta.token, meta.config || {})
+        const apiClient = new AmocrmApiClient(token, credentials)
         return new AmocrmSyncService(apiClient)
       }
 

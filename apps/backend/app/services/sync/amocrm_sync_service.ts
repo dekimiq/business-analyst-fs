@@ -40,7 +40,7 @@ export class AmocrmSyncService implements ISyncService {
     this.logger.info(`Синхронизация AmoCRM запущена. Текущий статус: ${meta.syncStatus}`)
 
     try {
-      if (!meta.token) {
+      if (!(meta.credentials as any)?.long_token) {
         throw new MetaTokenUnavailableError()
       }
 
@@ -393,7 +393,6 @@ export class AmocrmSyncService implements ISyncService {
     return IntegrationMetadata.firstOrCreate(
       { source: SOURCE },
       {
-        token: null,
         lastTimestamp: null,
         syncStartDate: null,
         syncedUntil: null,
@@ -401,6 +400,7 @@ export class AmocrmSyncService implements ISyncService {
         syncStatus: null,
         lastError: null,
         referenceSyncPhase: null,
+        credentials: null,
       }
     )
   }
