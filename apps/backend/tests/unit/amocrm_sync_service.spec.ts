@@ -18,11 +18,16 @@ async function cleanDatabase() {
   )
 }
 
-async function setupAmocrmMeta(overrides: Partial<IntegrationMetadata> = {}) {
+async function setupAmocrmMeta(overrides: any = {}) {
+  const credentials = {
+    domain: 'example.amocrm.ru',
+    client_id: '123456789',
+    client_secret: '123456789',
+    long_token: overrides.long_token !== undefined ? overrides.long_token : 'test-token',
+  }
   return IntegrationMetadata.updateOrCreate(
     { source: 'amocrm' },
     {
-      token: overrides.token !== undefined ? overrides.token : 'test-token',
       lastTimestamp: overrides.lastTimestamp ?? null,
       syncStartDate: overrides.syncStartDate ?? null,
       syncedUntil: overrides.syncedUntil ?? null,
@@ -30,11 +35,7 @@ async function setupAmocrmMeta(overrides: Partial<IntegrationMetadata> = {}) {
       syncStatus: overrides.syncStatus ?? null,
       lastError: overrides.lastError ?? null,
       referenceSyncPhase: overrides.referenceSyncPhase ?? null,
-      config: {
-        domain: 'example.amocrm.ru',
-        client_id: '123456789',
-        client_secret: '123456789',
-      },
+      credentials: { ...credentials, ...overrides.credentials },
     }
   )
 }
@@ -43,7 +44,9 @@ async function setupYandexMeta(phase = ReferenceSyncPhase.DONE) {
   return IntegrationMetadata.updateOrCreate(
     { source: 'yandex' },
     {
-      token: 'yandex-test-token',
+      credentials: {
+        long_token: 'yandex-test-token',
+      },
       syncStatus: SyncStatus.SUCCESS,
       referenceSyncPhase: phase,
     }

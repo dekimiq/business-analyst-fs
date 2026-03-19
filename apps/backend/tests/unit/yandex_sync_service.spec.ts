@@ -16,10 +16,14 @@ async function cleanDatabase() {
   )
 }
 
-async function setupMeta(overrides: Partial<IntegrationMetadata> = {}) {
+async function setupMeta(overrides: any = {}) {
   const meta = new IntegrationMetadata()
   meta.source = 'yandex'
-  meta.token = overrides.token !== undefined ? overrides.token : 'test-token'
+  const credentials = (overrides.credentials as any) || {}
+  meta.credentials = {
+    long_token: overrides.token !== undefined ? overrides.token : 'test-token',
+    ...credentials,
+  }
   meta.lastTimestamp = overrides.lastTimestamp ?? null
   meta.syncStartDate =
     overrides.syncStartDate !== undefined
