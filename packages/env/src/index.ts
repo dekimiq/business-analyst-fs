@@ -10,11 +10,13 @@ const __dirname = dirname(__filename)
 config({ path: resolve(__dirname, '../../../.env') })
 
 const schema = z.object({
-  TZ: z.string().default('Europe/Moscow'),
+  BUSINESS_TZ: z.string().default('Europe/Moscow'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DB_HOST: z.string().default('postgres'),
   DB_PORT: z.coerce.number().default(5432),
   DB_NAME: z.string().default('analytics'),
+  POSTGRES_USER: z.string().default('postgres'),
+  POSTGRES_PASSWORD: z.string().default('postgres_root'),
   DB_USER_BACKEND: z.string().default('backend_user'),
   DB_PASSWORD_BACKEND: z.string().default('secret_backend'),
   DB_USER_BOT: z.string().default('bot_user'),
@@ -41,6 +43,8 @@ const schema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   MAX_BOT_TOKEN: z.string().optional(),
+  USERNAME_DEV: z.string().optional(),
+  USER_ID_DEV: z.string().optional(),
   BACKEND_API_URL: z.string().default('http://backend:3333'),
   PORT: z.coerce.number().default(3333),
   HOST: z.string().default('0.0.0.0'),
