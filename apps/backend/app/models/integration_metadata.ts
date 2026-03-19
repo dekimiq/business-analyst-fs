@@ -25,9 +25,6 @@ export default class IntegrationMetadata extends BaseModel {
   declare source: string
 
   @column()
-  declare token: string | null
-
-  @column()
   declare lastTimestamp: string | null
 
   @column.date()
@@ -49,7 +46,7 @@ export default class IntegrationMetadata extends BaseModel {
   declare lastError: string | null
 
   @column({ serializeAs: null })
-  declare config: Record<string, any> | null
+  declare credentials: Record<string, any> | null
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
