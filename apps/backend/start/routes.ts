@@ -11,8 +11,7 @@ import router from '@adonisjs/core/services/router'
 import AutoSwagger from 'adonis-autoswagger'
 import swagger from '#config/swagger'
 
-const SyncStatusController = () => import('#controllers/sync/sync_status_controller')
-const YandexIntegrationController = () => import('#controllers/sync/yandex_integration_controller')
+const IntegrationController = () => import('#controllers/integration_controller')
 
 // ---------------------------------------------------------------------------
 // Swagger UI
@@ -21,19 +20,23 @@ router.get('/swagger', async () => AutoSwagger.default.docs(router.toJSON(), swa
 router.get('/docs', async () => AutoSwagger.default.ui('/swagger', swagger))
 
 // ---------------------------------------------------------------------------
-// Sync routes
+// Integration management
 // ---------------------------------------------------------------------------
+
+// General group
+router.get('/status', [IntegrationController, 'index'])
+router.post('/tokens/install', [IntegrationController, 'installToken'])
+
+// AmoCRM group
 router
   .group(() => {
-    router.get('/status', [SyncStatusController, 'index'])
+    router.post('/config', [IntegrationController, 'setAmocrmConfig'])
+  })
+  .prefix('/amocrm')
 
-    router
-      .group(() => {
-        router.get('/status', [YandexIntegrationController, 'status'])
-        router.post('/setup', [YandexIntegrationController, 'setupSettings'])
-        router.post('/token', [YandexIntegrationController, 'updateToken'])
-        router.post('/sync', [YandexIntegrationController, 'sync'])
-      })
-      .prefix('/yandex')
+// Sync group
+router
+  .group(() => {
+    router.post('/start-date', [IntegrationController, 'setSyncStartDate'])
   })
   .prefix('/sync')
