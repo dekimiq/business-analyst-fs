@@ -31,58 +31,58 @@ vi.mock('../src/services/botNotifier.js', () => ({
   },
 }))
 
-describe('Scheduler Module', () => {
+describe('Модуль Планировщика (Scheduler)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('should process a valid schedule from DB and invoke node-cron', async () => {
-    // Mock Knex response
+  it('должен обработать корректное расписание из БД и вызвать node-cron', async () => {
+    // Мок ответа Knex
     const mockDbSelect = vi
       .fn()
       .mockResolvedValue([{ name: 'sync', time_hh_mm: '03:00', day_of_week: null }])
-    // The query builder chain mock `db('schedules').select('*')`
+    // Мок цепочки вызовов `db('schedules').select('*')`
     const dbMock = db as unknown as ReturnType<typeof vi.fn>
     dbMock.mockReturnValue({ select: mockDbSelect })
 
     await reloadSchedules()
 
-    // It should have queried the DB
+    // Должен был быть сделан запрос к БД
     expect(mockDbSelect).toHaveBeenCalled()
 
-    // It should have parsed the time
+    // Должен был быть вызван парсинг времени
     expect(convertLocalTimeToUTC).toHaveBeenCalledWith(3, 0)
 
-    // It should have created the cron sequence (3:00 UTC)
-    // format is `${utcMinute} ${utcHour} * * *`
+    // Должна была быть создана cron-последовательность (3:00 UTC)
+    // формат: `${utcMinute} ${utcHour} * * *`
     expect(cron.schedule).toHaveBeenCalledWith(
       '0 3 * * *',
       expect.any(Function),
       expect.objectContaining({ timezone: 'UTC' }),
     )
 
-    // It should NOT have sent an error
+    // Не должен был отправлять уведомление об ошибке
     expect(BotNotifier.notifyAlert).not.toHaveBeenCalled()
   })
 
-  it('should ignore and skip malformed strings, calling bot notifier logic later if implemented, but bypasses correctly here', async () => {
+  it('должен игнорировать некорректные строки времени и выводить ошибку в консоль', async () => {
     const mockDbSelect = vi
       .fn()
       .mockResolvedValue([{ name: 'broken', time_hh_mm: 'invalid', day_of_week: null }])
     const dbMock = db as unknown as ReturnType<typeof vi.fn>
     dbMock.mockReturnValue({ select: mockDbSelect })
 
-    // Spy on console.error
+    // Следим за console.error
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     await reloadSchedules()
 
     expect(cron.schedule).not.toHaveBeenCalled()
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid time format'))
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Неверный формат времени'))
     consoleSpy.mockRestore()
   })
 
-  it('should capture DB connection errors and notify the BotNotifier completely', async () => {
+  it('должен перехватывать ошибки подключения к БД и уведомлять BotNotifier', async () => {
     const errorObj = new Error('Database Down')
     const mockDbSelect = vi.fn().mockRejectedValue(errorObj)
     const dbMock = db as unknown as ReturnType<typeof vi.fn>
@@ -90,7 +90,10 @@ describe('Scheduler Module', () => {
 
     await reloadSchedules()
 
-    expect(BotNotifier.notifyAlert).toHaveBeenCalledWith('Reload Schedules DB fetch', errorObj)
+    expect(BotNotifier.notifyAlert).toHaveBeenCalledWith(
+      'Ошибка получения расписаний из БД',
+      errorObj,
+    )
     expect(cron.schedule).not.toHaveBeenCalled()
   })
 })

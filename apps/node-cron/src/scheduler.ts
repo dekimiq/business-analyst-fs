@@ -52,7 +52,7 @@ export async function reloadSchedules() {
       const parsed = parseTime(schedule.time_hh_mm)
       if (!parsed) {
         console.error(
-          `[ERROR]: [ Node-Cron.reloadSchedules ] Invalid time format for schedule ${schedule.name}: ${schedule.time_hh_mm}`,
+          `[ERROR]: [ Node-Cron.reloadSchedules ] Неверный формат времени для расписания ${schedule.name}: ${schedule.time_hh_mm}`,
         )
         continue
       }
@@ -66,19 +66,19 @@ export async function reloadSchedules() {
         cronExpression = `${utcMinute} ${utcHour} * * ${currentDayOfWeek}`
       } else {
         console.error(
-          `[ERROR]: [ Node-Cron.reloadSchedules ] Unable to parse time for schedule ${schedule.name}`,
+          `[ERROR]: [ Node-Cron.reloadSchedules ] Не удалось разобрать время для расписания ${schedule.name}`,
         )
         continue
       }
 
       console.log(
-        `[INFO]: [ Node-Cron.reloadSchedules ] Loaded ${schedule.name} at local ${schedule.time_hh_mm} (TZ: ${env.TZ}) -> UTC Cron: ${cronExpression}`,
+        `[INFO]: [ Node-Cron.reloadSchedules ] Загружено ${schedule.name} на локальное время ${schedule.time_hh_mm} (TZ: ${env.BUSINESS_TZ}) -> UTC Cron: ${cronExpression}`,
       )
 
       const task = cron.schedule(
         cronExpression,
         async () => {
-          console.log(`[INFO]: [ Node-Cron.job ] Trigger ${schedule.name}`)
+          console.log(`[INFO]: [ Node-Cron.job ] Запуск задачи ${schedule.name}`)
           try {
             switch (schedule.name) {
               case 'sync:crm':
@@ -100,10 +100,12 @@ export async function reloadSchedules() {
                 await reportsQueue.add('weekly_report', { trigger: 'cron' }, jobOpts)
                 break
               default:
-                console.warn(`[WARNING]: [ Node-Cron.job ] Unknown schedule name: ${schedule.name}`)
+                console.warn(
+                  `[WARNING]: [ Node-Cron.job ] Неизвестное имя расписания: ${schedule.name}`,
+                )
             }
           } catch (e) {
-            await BotNotifier.notifyAlert(`Job Execution Trigger: ${schedule.name}`, e)
+            await BotNotifier.notifyAlert(`Ошибка выполнения задачи: ${schedule.name}`, e)
           }
         },
         {
@@ -114,6 +116,6 @@ export async function reloadSchedules() {
       activeTasks.push(task)
     }
   } catch (error) {
-    await BotNotifier.notifyAlert('Reload Schedules DB fetch', error)
+    await BotNotifier.notifyAlert('Ошибка получения расписаний из БД', error)
   }
 }

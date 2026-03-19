@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('@project/env', () => {
   return {
     env: {
-      get TZ() {
+      get BUSINESS_TZ() {
         return process.env.TEST_TZ || 'UTC'
       },
     },
@@ -23,7 +23,7 @@ describe('convertLocalTimeToUTC', () => {
     vi.useRealTimers()
   })
 
-  it('should convert time backward smoothly if timezone is ahead of UTC', () => {
+  it('должен корректно конвертировать время назад, если часовой пояс опережает UTC', () => {
     process.env.TEST_TZ = 'Europe/Moscow'
     vi.setSystemTime(new Date('2025-01-01T12:00:00Z'))
 
@@ -31,7 +31,7 @@ describe('convertLocalTimeToUTC', () => {
     expect(result).toEqual({ utcHour: 0, utcMinute: 0 })
   })
 
-  it('should roll over to the previous UTC day effectively (returning correct 24h clock)', () => {
+  it('должен корректно переходить на предыдущий день UTC (возвращать правильный формат 24ч)', () => {
     process.env.TEST_TZ = 'Europe/Moscow'
     vi.setSystemTime(new Date('2025-01-01T12:00:00Z'))
 
@@ -39,7 +39,7 @@ describe('convertLocalTimeToUTC', () => {
     expect(result).toEqual({ utcHour: 22, utcMinute: 0 })
   })
 
-  it('should handle fallback to UTC when TZ is missing', () => {
+  it('должен использовать UTC по умолчанию, если TZ отсутствует', () => {
     process.env.TEST_TZ = ''
     vi.setSystemTime(new Date('2025-01-01T12:00:00Z'))
 
