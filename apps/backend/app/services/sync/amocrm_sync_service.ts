@@ -34,8 +34,19 @@ export class AmocrmSyncService implements ISyncService {
   // PUBLIC: ISyncService Implementation
   // -------------------------------------------------------------------------
 
-  async sync(): Promise<void> {
+  async sync(force: boolean = false): Promise<void> {
     const meta = await this.getMeta()
+
+    if (!force && meta.syncStatus === SyncStatus.ERROR) {
+      this.logger.warn(
+        `Синхронизация AmoCRM пропущена: сервис находится в статусе ERROR. Ожидание вмешательства разработчика.`
+      )
+      return
+    }
+
+    if (force && meta.syncStatus === SyncStatus.ERROR) {
+      this.logger.info(`Принудительный запуск синхронизации для '${SOURCE}' из состояния ERROR`)
+    }
 
     this.logger.info(`Синхронизация AmoCRM запущена. Текущий статус: ${meta.syncStatus}`)
 

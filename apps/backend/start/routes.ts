@@ -26,6 +26,7 @@ router.get('/docs', async () => AutoSwagger.default.ui('/swagger', swagger))
 // General group
 router.get('/status', [IntegrationController, 'index'])
 router.post('/tokens/install', [IntegrationController, 'installToken'])
+router.post('/notifications/test', [IntegrationController, 'testNotification'])
 
 // AmoCRM group
 router
@@ -38,5 +39,6 @@ router
 router
   .group(() => {
     router.post('/start-date', [IntegrationController, 'setSyncStartDate'])
+    router.post('/force/:source', [IntegrationController, 'forceSync'])
   })
   .prefix('/sync')

@@ -3,6 +3,7 @@ import { SyncLoggerService } from '#services/sync/sync_logger_service'
 
 export interface SyncJobPayload {
   source: string
+  force?: boolean
 }
 
 /**
@@ -23,7 +24,7 @@ export default class SyncJob {
   /**
    * Обрабатывает задачу синхронизации для указанного источника.
    *
-   * @param payload - содержит source ('yandex', 'amocrm', etc)
+   * @param payload - содержит source ('yandex', 'amocrm', etc) и необязательный force
    */
   async handle(payload: SyncJobPayload) {
     // Получаем сервисы из IoC-контейнера
@@ -41,8 +42,8 @@ export default class SyncJob {
     }
 
     try {
-      await logger.info('Запущена задача синхронизации')
-      await service.sync()
+      await logger.info(`Запущена задача синхронизации (force: ${!!payload.force})`)
+      await service.sync(!!payload.force)
       await logger.info('Задача синхронизации успешно завершена')
     } catch (error) {
       await logger.error(

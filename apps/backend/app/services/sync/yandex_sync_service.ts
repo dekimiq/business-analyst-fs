@@ -37,8 +37,19 @@ export class YandexSyncService implements ISyncService {
   // -------------------------------------------------------------------------
   // PUBLIC: ISyncService Implementation
   // -------------------------------------------------------------------------
-  async sync(): Promise<void> {
+  async sync(force: boolean = false): Promise<void> {
     const meta = await this.getMeta()
+
+    if (!force && meta.syncStatus === SyncStatus.ERROR) {
+      this.logger.warn(
+        `Синхронизация пропущена: сервис '${SOURCE}' находится в статусе ERROR. Ожидание вмешательства разработчика.`
+      )
+      return
+    }
+
+    if (force && meta.syncStatus === SyncStatus.ERROR) {
+      this.logger.info(`Принудительный запуск синхронизации для '${SOURCE}' из состояния ERROR`)
+    }
 
     this.logger.info(`Синхронизация запущена. Текущий статус: ${meta.syncStatus}`)
 
@@ -52,33 +63,19 @@ export class YandexSyncService implements ISyncService {
       }
 
       const isInitialSync = meta.syncStatus === null
+
       const isResuming =
-        meta.syncStatus === SyncStatus.ERROR || meta.syncStatus === SyncStatus.PARTIAL
+        meta.syncStatus === SyncStatus.PARTIAL ||
+        (force &&
+          meta.syncStatus === SyncStatus.ERROR &&
+          meta.referenceSyncPhase !== ReferenceSyncPhase.DONE)
 
       if (isInitialSync || isResuming) {
         if (isResuming) {
           this.logger.info(`Возобновление синхронизации из состояния: ${meta.syncStatus}`)
         }
 
-        // --- Initial Timestamp ---
-        if (!meta.lastTimestamp) {
-          if (!meta.referenceSyncPhase) {
-            meta.referenceSyncPhase = ReferenceSyncPhase.TIMESTAMP
-            await meta.save()
-          }
-
-          try {
-            const timestampResponse = await YandexRetryService.call(() =>
-              this.api.getServerTimestamp()
-            )
-            meta.lastTimestamp = (timestampResponse as any).Timestamp || String(timestampResponse)
-            await meta.save()
-          } catch (error) {
-            throw new ApiFatalError('timestamp_unknown')
-          }
-        }
-
-        // --- Structural Data ---
+        // --- Structural Data (Timestamp, Campaigns, AdGroups, Ads) ---
         if (meta.referenceSyncPhase !== ReferenceSyncPhase.DONE) {
           await this.syncStructuralData(meta)
         }
@@ -97,7 +94,10 @@ export class YandexSyncService implements ISyncService {
         } else {
           this.logger.info('Синхронизация возобновлена и успешно завершена')
         }
-      } else if (meta.syncStatus === SyncStatus.SUCCESS) {
+      } else if (
+        meta.syncStatus === SyncStatus.SUCCESS ||
+        (force && meta.syncStatus === SyncStatus.ERROR)
+      ) {
         await this.dailySync(meta)
       }
     } catch (error) {
@@ -181,15 +181,26 @@ export class YandexSyncService implements ISyncService {
     }
   }
 
-  private async asyncSyncStructuralData(meta: IntegrationMetadata): Promise<void> {
+  private async syncStructuralData(meta: IntegrationMetadata): Promise<void> {
     if (!meta.referenceSyncPhase || meta.referenceSyncPhase === ReferenceSyncPhase.TIMESTAMP) {
-      meta.referenceSyncPhase = ReferenceSyncPhase.CAMPAIGNS
-      await meta.save()
+      if (meta.referenceSyncPhase !== ReferenceSyncPhase.TIMESTAMP) {
+        meta.referenceSyncPhase = ReferenceSyncPhase.TIMESTAMP
+        await meta.save()
+      }
+
+      this.logger.info('Синхронизация структурных данных: получение временной метки (TIMESTAMP)')
+      try {
+        const timestampResponse = await YandexRetryService.call(() => this.api.getServerTimestamp())
+        meta.lastTimestamp = (timestampResponse as any).Timestamp || String(timestampResponse)
+        meta.referenceSyncPhase = ReferenceSyncPhase.CAMPAIGNS
+        await meta.save()
+      } catch (error: any) {
+        this.logger.error(`Ошибка при получении временной метки: ${error.message}`)
+        throw new ApiFatalError('timestamp_unknown')
+      }
     }
 
-    this.logger.info(
-      `Синхронизация структурных данных. Текущая фаза в БД: ${meta.referenceSyncPhase}`
-    )
+    this.logger.info(`Синхронизация структурных данных. Текущая фаза: ${meta.referenceSyncPhase}`)
 
     // --- Campaigns ---
     if (meta.referenceSyncPhase === ReferenceSyncPhase.CAMPAIGNS) {
@@ -321,10 +332,6 @@ export class YandexSyncService implements ISyncService {
     }
 
     this.logger.info('Синхронизация структурных данных выполнена')
-  }
-
-  private async syncStructuralData(meta: IntegrationMetadata): Promise<void> {
-    return this.asyncSyncStructuralData(meta)
   }
 
   private async syncDailyStatsBackwards(

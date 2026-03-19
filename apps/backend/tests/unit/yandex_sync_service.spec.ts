@@ -171,9 +171,13 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
     // Восстанавливаем timestamp функцию + 2. Сбой на campaigns
     api.getServerTimestamp = originalGetServerTimestamp
     nock.cleanAll()
+    nock(yandexBase)
+      .persist()
+      .post('/json/v5/changes', (body) => body.method === 'check')
+      .reply(200, { result: { Timestamp: 'test-timestamp' } })
     nock(yandexBase).persist().post('/json/v5/campaigns').reply(400)
 
-    await assert.rejects(() => service.sync())
+    await assert.rejects(() => service.sync(true))
     meta = await IntegrationMetadata.query().firstOrFail()
     assert.equal(meta.lastError, 'campaigns_unknown')
     assert.equal(meta.syncStatus, SyncStatus.ERROR)
@@ -188,7 +192,7 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
       .post('/json/v5/adgroups')
       .reply(400)
 
-    await assert.rejects(() => service.sync())
+    await assert.rejects(() => service.sync(true))
     meta = await IntegrationMetadata.query().firstOrFail()
     assert.equal(meta.lastError, 'adgroups_unknown')
     assert.equal(meta.syncStatus, SyncStatus.ERROR)
@@ -203,7 +207,7 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
       .post('/json/v5/ads')
       .reply(400)
 
-    await assert.rejects(() => service.sync())
+    await assert.rejects(() => service.sync(true))
     meta = await IntegrationMetadata.query().firstOrFail()
     assert.equal(meta.lastError, 'ads_unknown')
     assert.equal(meta.syncStatus, SyncStatus.ERROR)
@@ -218,7 +222,7 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
       .post('/json/v5/reports')
       .reply(500)
 
-    await assert.rejects(() => service.sync())
+    await assert.rejects(() => service.sync(true))
     meta = await IntegrationMetadata.query().firstOrFail()
     assert.equal(meta.referenceSyncPhase, ReferenceSyncPhase.DONE)
     assert.equal(meta.syncStatus, SyncStatus.PARTIAL)
@@ -233,7 +237,7 @@ test.group('YandexSyncService: Логика интеграции', (group) => {
         'Content-Type': 'text/plain',
       })
 
-    await service.sync()
+    await service.sync(true)
     meta = await IntegrationMetadata.query().firstOrFail()
     assert.equal(meta.syncStatus, SyncStatus.SUCCESS)
     assert.isNull(meta.lastError)

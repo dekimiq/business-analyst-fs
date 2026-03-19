@@ -1,4 +1,5 @@
 import SyncLog from '#models/sync_log'
+import { NotificationService } from '#services/notification_service'
 
 export class SyncLoggerService {
   constructor(private readonly source: string) {}
@@ -8,6 +9,12 @@ export class SyncLoggerService {
 
     if (level === 'error') {
       console.error(prefix, message, metadata || '')
+
+      try {
+        await NotificationService.getInstance().notifyError(this.source, message)
+      } catch (err) {
+        console.error('Failed to send error notification:', err)
+      }
     } else if (level === 'warn') {
       console.warn(prefix, message, metadata || '')
     } else {
