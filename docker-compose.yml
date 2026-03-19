@@ -5,12 +5,12 @@ services:
     env_file: .env
     environment:
       POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_root
-      TZ: ${TZ}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: 'UTC'
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/20-init.sh
     ports:
       - "5432:5432"
 
@@ -18,7 +18,7 @@ services:
     image: redis:7-alpine
     command: redis-server --databases 16
     environment:
-      TZ: ${TZ}
+      TZ: 'UTC'
     ports:
       - "6379:6379"
 
@@ -26,7 +26,7 @@ services:
     build: ./apps/backend
     env_file: .env
     environment:
-      TZ: ${TZ}
+      TZ: 'UTC'
     depends_on:
       - postgres
       - redis
@@ -35,7 +35,7 @@ services:
     build: ./apps/bot-interaction
     env_file: .env
     environment:
-      TZ: ${TZ}
+      TZ: 'UTC'
     depends_on:
       - postgres
       - redis
@@ -44,7 +44,7 @@ services:
     build: ./apps/ai-module
     env_file: .env
     environment:
-      TZ: ${TZ}
+      TZ: 'UTC'
     depends_on:
       - postgres
       - backend
@@ -53,7 +53,7 @@ services:
     build: ./apps/node-cron
     env_file: .env
     environment:
-      TZ: ${TZ}
+      TZ: 'UTC'
     depends_on:
       - redis
 
