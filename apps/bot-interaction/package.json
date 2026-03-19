@@ -5,13 +5,17 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "migrate": "NODE_OPTIONS='--import tsx/esm' knex --knexfile knexfile.ts migrate:latest",
+    "migrate:rollback": "NODE_OPTIONS='--import tsx/esm' knex --knexfile knexfile.ts migrate:rollback",
+    "seed": "NODE_OPTIONS='--import tsx/esm' knex --knexfile knexfile.ts seed:run"
   },
   "dependencies": {
     "grammy": "^1.31.0",
     "bullmq": "^5.34.0",
     "knex": "^3.1.0",
     "pg": "^8.13.1",
+    "ioredis": "^5.3.2",
     "@project/env": "*",
     "@project/shared": "*"
   },
