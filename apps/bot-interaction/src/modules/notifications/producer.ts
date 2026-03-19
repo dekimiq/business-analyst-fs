@@ -30,5 +30,7 @@ export function getNotificationQueue(): Queue<NotificationJobData> {
 export async function enqueueNotification(data: NotificationJobData): Promise<void> {
   const q = getNotificationQueue()
   await q.add('send', data)
-  logger.info('Уведомление добавлено в очередь', { сообщение: data.message.slice(0, 50) })
+  logger.info('Уведомление добавлено в очередь', {
+    сообщение: data.message ? data.message.slice(0, 50) : 'payload',
+  })
 }
