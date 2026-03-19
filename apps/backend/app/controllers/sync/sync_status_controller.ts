@@ -12,7 +12,7 @@ export default class SyncStatusController {
   public async index({ response }: HttpContext) {
     const statuses = await IntegrationMetadata.all()
 
-    const syncingStatuses = [SyncStatus.INITIALIZING, SyncStatus.PENDING, SyncStatus.PARTIAL]
+    const syncingStatuses = [SyncStatus.PARTIAL]
     const isSyncing = statuses.some(
       (status) => status.syncStatus && syncingStatuses.includes(status.syncStatus)
     )

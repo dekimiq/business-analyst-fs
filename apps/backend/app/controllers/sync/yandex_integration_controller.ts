@@ -22,7 +22,8 @@ export default class YandexIntegrationController {
   public async setupSettings({ request, response }: HttpContext) {
     const existing = await IntegrationMetadata.findBy('source', 'yandex')
 
-    if (existing?.token || existing?.syncStartDate) {
+    const credentials = (existing?.credentials as any) || {}
+    if (credentials?.long_token || existing?.syncStartDate) {
       return response.badRequest({
         status: 'error',
         error: 'settings_already_exist',
@@ -47,10 +48,11 @@ export default class YandexIntegrationController {
 
     const syncStartDate = DateTime.fromISO(syncStartDateStr)
 
+    const currentCredentials = (existing?.credentials as any) || {}
     const metadata = await IntegrationMetadata.updateOrCreate(
       { source: 'yandex' },
       {
-        token,
+        credentials: { ...currentCredentials, long_token: token },
         syncStartDate,
       }
     )
@@ -58,7 +60,7 @@ export default class YandexIntegrationController {
     return response.ok({
       status: 'success',
       message: 'Настройки успешно установлены',
-      hasToken: !!metadata.token,
+      hasToken: !!(metadata.credentials as any)?.long_token,
       syncStartDate: metadata.syncStartDate?.toISODate(),
       syncStatus: metadata.syncStatus,
     })
@@ -86,12 +88,17 @@ export default class YandexIntegrationController {
       })
     }
 
-    const metadata = await IntegrationMetadata.updateOrCreate({ source: 'yandex' }, { token })
+    const existing = await IntegrationMetadata.findBy('source', 'yandex')
+    const currentCredentials = (existing?.credentials as any) || {}
+    const metadata = await IntegrationMetadata.updateOrCreate(
+      { source: 'yandex' },
+      { credentials: { ...currentCredentials, long_token: token } }
+    )
 
     return response.ok({
       status: 'success',
       message: 'Токен сохранён и проверен',
-      hasToken: !!metadata.token,
+      hasToken: !!(metadata.credentials as any)?.long_token,
     })
   }
 
@@ -121,7 +128,7 @@ export default class YandexIntegrationController {
 
     return response.ok({
       status: 'success',
-      isHasToken: !!metadata.token,
+      isHasToken: !!(metadata.credentials as any)?.long_token,
       lastTimestamp: metadata.lastTimestamp,
       syncStartDate: metadata.syncStartDate?.toISODate() ?? null,
       syncedUntil: metadata.syncedUntil?.toISODate() ?? null,
@@ -140,8 +147,8 @@ export default class YandexIntegrationController {
    */
   public async sync({ response }: HttpContext) {
     const metadata = await IntegrationMetadata.findBy('source', 'yandex')
-
-    if (!metadata || !metadata.token) {
+    const credentials = (metadata?.credentials as any) || {}
+    if (!metadata || !credentials.long_token) {
       return response.badRequest({
         status: 'error',
         error: 'settings_missing',
@@ -157,7 +164,7 @@ export default class YandexIntegrationController {
       })
     }
 
-    const api = new YandexApiClient(metadata.token)
+    const api = new YandexApiClient(credentials.long_token)
     const syncService = new YandexSyncService(api)
 
     try {
