@@ -7,7 +7,10 @@
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "migrate": "NODE_OPTIONS='--import tsx/esm' knex --knexfile knexfile.ts migrate:latest",
+    "migrate:rollback": "NODE_OPTIONS='--import tsx/esm' knex --knexfile knexfile.ts migrate:rollback",
+    "seed": "NODE_OPTIONS='--import tsx/esm' knex --knexfile knexfile.ts seed:run"
   },
   "dependencies": {
     "@project/env": "*",
