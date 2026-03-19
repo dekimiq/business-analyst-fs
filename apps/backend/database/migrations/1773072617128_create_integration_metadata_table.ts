@@ -7,7 +7,6 @@ export default class extends BaseSchema {
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id')
       table.string('source', 50).notNullable().unique()
-      table.text('token').nullable()
       table.string('last_timestamp').nullable()
       table.date('sync_start_date').nullable()
 
@@ -21,7 +20,7 @@ export default class extends BaseSchema {
         .nullable()
         .comment('timestamp | campaigns | adGroups | ads | done')
       table.text('last_error').nullable()
-      table.jsonb('config').nullable()
+      table.jsonb('credentials').nullable()
 
       table.timestamp('created_at')
       table.timestamp('updated_at')

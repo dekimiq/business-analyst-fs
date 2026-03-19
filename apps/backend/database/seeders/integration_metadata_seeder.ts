@@ -6,23 +6,25 @@ export default class IntegrationMetadataSeeder extends BaseSeeder {
     const sources = [
       {
         source: 'yandex' as const,
-        config: null,
+        credentials: {
+          long_token: null,
+        },
       },
       {
         source: 'amocrm' as const,
-        config: {
+        credentials: {
           domain: null,
           client_id: null,
           client_secret: null,
+          long_token: null,
         },
       },
     ]
 
-    for (const { source, config } of sources) {
+    for (const { source, credentials } of sources) {
       await IntegrationMetadata.firstOrCreate(
         { source },
         {
-          token: null,
           lastTimestamp: null,
           syncStartDate: null,
           syncedUntil: null,
@@ -30,7 +32,7 @@ export default class IntegrationMetadataSeeder extends BaseSeeder {
           syncStatus: null,
           referenceSyncPhase: null,
           lastError: null,
-          config,
+          credentials,
         }
       )
     }

@@ -234,8 +234,8 @@ export class DailyStatSchema extends BaseModel {
 
 export class IntegrationMetadatumSchema extends BaseModel {
   static $columns = [
-    'config',
     'createdAt',
+    'credentials',
     'id',
     'lastError',
     'lastSuccessSyncDate',
@@ -245,14 +245,13 @@ export class IntegrationMetadatumSchema extends BaseModel {
     'syncStartDate',
     'syncStatus',
     'syncedUntil',
-    'token',
     'updatedAt',
   ] as const
   $columns = IntegrationMetadatumSchema.$columns
-  @column()
-  declare config: any | null
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime | null
+  @column()
+  declare credentials: any | null
   @column({ isPrimary: true })
   declare id: number
   @column()
@@ -271,8 +270,6 @@ export class IntegrationMetadatumSchema extends BaseModel {
   declare syncStatus: string | null
   @column.date()
   declare syncedUntil: DateTime | null
-  @column()
-  declare token: string | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
 }
