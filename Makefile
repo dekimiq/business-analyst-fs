@@ -1,4 +1,4 @@
-.PHONY: migrate migrate-fresh generate-key
+.PHONY: migrate migrate-fresh generate-key dev dev-backend
 
 # Запуск миграций для всех необходимых проектов
 migrate:
@@ -36,3 +36,11 @@ check:
 
 check-fix:
 	npm run check-fix
+
+# Запуск всех сервисов в dev-режиме
+dev:
+	npm run dev
+
+# Запуск только бэкенда в dev-режиме
+dev-backend:
+	npm run dev --workspace=@project/backend
