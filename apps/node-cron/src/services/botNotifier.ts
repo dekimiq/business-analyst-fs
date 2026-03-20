@@ -56,4 +56,19 @@ export class BotNotifier {
       console.error('[INFO]: [ Node-Cron.BotNotifier ] Original error was:', error)
     }
   }
+
+  static async enqueueCleanup(): Promise<void> {
+    try {
+      await notificationsQueue.add(
+        'cleanup',
+        {},
+        {
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
+      )
+    } catch (error) {
+      console.error('[FATAL]: [ Node-Cron.BotNotifier ] Failed to enqueue cleanup job', error)
+    }
+  }
 }

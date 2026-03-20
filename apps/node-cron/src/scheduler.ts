@@ -99,6 +99,10 @@ export async function reloadSchedules() {
               case 'weekly_report':
                 await reportsQueue.add('weekly_report', { trigger: 'cron' }, jobOpts)
                 break
+              case 'logs:cleanup':
+                await syncQueue.add('sync:cleanup', { months: 3 }, jobOpts)
+                await BotNotifier.enqueueCleanup()
+                break
               default:
                 console.warn(
                   `[WARNING]: [ Node-Cron.job ] Неизвестное имя расписания: ${schedule.name}`,

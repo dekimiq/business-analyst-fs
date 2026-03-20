@@ -8,7 +8,8 @@ export async function seed(knex: Knex): Promise<void> {
     ('sync:crm', '*/5', NULL),
     ('sync:ads', '03:00', NULL),
     ('daily_report', '09:00', NULL),
-    ('weekly_report', '10:00', 7)
+    ('weekly_report', '10:00', 7),
+    ('logs:cleanup', '04:00', 0)
     ON CONFLICT (name) DO NOTHING;
   `)
 }

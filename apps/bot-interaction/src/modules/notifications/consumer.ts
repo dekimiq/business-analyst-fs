@@ -7,6 +7,8 @@ import { templates } from './templates.js'
 import { NOTIFICATION_QUEUE_NAME } from './producer.js'
 import type { Bot } from 'grammy'
 import type { BotContext } from '../../types/index.js'
+import { cleanupOldLogs } from '../../utils/logger.js'
+import { getDb } from '../../database/client.js'
 
 export function startNotificationConsumer(bot: Bot<BotContext>): Worker {
   const userRepo = new UserRepository()
@@ -14,6 +16,12 @@ export function startNotificationConsumer(bot: Bot<BotContext>): Worker {
   const worker = new Worker<NotificationJobData, NotificationJobResult>(
     NOTIFICATION_QUEUE_NAME,
     async (job) => {
+      if (job.name === 'cleanup') {
+        logger.info('Запуск задачи очистки старых логов (бота)', { jobId: job.id })
+        await cleanupOldLogs(getDb())
+        return { cleanup: true } as any
+      }
+
       const { message, recipientIds, type, payload } = job.data
 
       logger.info('Обработка задачи уведомления', { jobId: job.id, type })
