@@ -49,6 +49,19 @@ export class SyncProducerService {
   }
 
   /**
+   * Добавляет задачу в очередь на очистку старых логов.
+   *
+   * @param months - Срок хранения в месяцах (по умолчанию 3)
+   */
+  public async enqueueCleanup(months: number = 3): Promise<void> {
+    if (!this.queue) return
+
+    await this.queue.add(`${SYNC_QUEUE_NAME}:cleanup`, {
+      months,
+    })
+  }
+
+  /**
    * Закрытие соединения.
    */
   public async close(): Promise<void> {

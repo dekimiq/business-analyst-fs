@@ -19,4 +19,17 @@ export default class SyncLog extends BaseModel {
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
+
+  /**
+   * Удаляет записи старше указанного количества месяцев.
+   *
+   * @param months - количество месяцев (по умолчанию 3)
+   * @returns Количество удаленных записей
+   */
+  public static async pruneOldLogs(months: number = 3): Promise<number> {
+    const cutoffDate = DateTime.now().minus({ months })
+
+    const rows = await this.query().where('created_at', '<', cutoffDate.toSQL()).delete()
+    return rows[0] || 0
+  }
 }
