@@ -42,9 +42,6 @@ export default class SyncProvider {
     const orchestrator = await this.app.container.make(SyncOrchestratorService)
     const logger = await this.app.container.make(SyncLoggerService)
 
-    // Инициализируем оркестратор с логгером
     orchestrator.initialize(logger)
-
-    await logger.info('SyncProvider: Orchestrator инициализирован')
   }
 }
