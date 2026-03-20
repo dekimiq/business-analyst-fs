@@ -4,7 +4,7 @@ import { BotNotifier } from './services/botNotifier.js'
 
 async function bootstrap() {
   console.log('[INFO]: [ Node-Cron.bootstrap ] Starting Scheduler Service...')
-  console.log(`[INFO]: [ Node-Cron.bootstrap ] Timezone: ${env.TZ}`)
+  console.log(`[INFO]: [ Node-Cron.bootstrap ] Timezone: ${env.BUSINESS_TZ}`)
 
   // Загрузка расписания единожды при запуске
   try {
