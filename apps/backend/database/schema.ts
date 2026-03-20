@@ -251,7 +251,7 @@ export class IntegrationMetadatumSchema extends BaseModel {
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime | null
   @column()
-  declare credentials: any | null
+  declare credentials: string | null
   @column({ isPrimary: true })
   declare id: number
   @column()

@@ -39,7 +39,8 @@
     "#app_config/*": "./app/config/*.js",
     "#contracts/*": "./app/contracts/*.js",
     "#utils/*": "./app/utils/*.js",
-    "#types/*": "./app/types/*.js"
+    "#types/*": "./app/types/*.js",
+    "#jobs/*": "./app/jobs/*.js"
   },
   "devDependencies": {
     "@adonisjs/assembler": "^8.0.0",

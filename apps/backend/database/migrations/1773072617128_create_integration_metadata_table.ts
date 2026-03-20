@@ -20,7 +20,7 @@ export default class extends BaseSchema {
         .nullable()
         .comment('timestamp | campaigns | adGroups | ads | done')
       table.text('last_error').nullable()
-      table.jsonb('credentials').nullable()
+      table.text('credentials').nullable()
 
       table.timestamp('created_at')
       table.timestamp('updated_at')

@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon'
 import { BaseModel, column } from '@adonisjs/lucid/orm'
+import encryption from '@adonisjs/core/services/encryption'
 
 export enum SyncStatus {
   PARTIAL = 'partial',
@@ -45,7 +46,32 @@ export default class IntegrationMetadata extends BaseModel {
   @column()
   declare lastError: string | null
 
-  @column({ serializeAs: null })
+  @column({
+    serializeAs: null,
+    /**
+     * Дешифруем credentials при получении из базы
+     */
+    consume: (value) => {
+      if (!value) return null
+      if (typeof value !== 'string') return value
+      try {
+        return encryption.decrypt(value)
+      } catch {
+        try {
+          return JSON.parse(value)
+        } catch {
+          return value
+        }
+      }
+    },
+    /**
+     * Шифруем credentials перед сохранением в базу
+     */
+    prepare: (value) => {
+      if (!value) return null
+      return encryption.encrypt(value)
+    },
+  })
   declare credentials: Record<string, any> | null
 
   @column.dateTime({ autoCreate: true })
