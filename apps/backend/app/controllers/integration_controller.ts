@@ -10,7 +10,6 @@ import { AmocrmApiClient } from '#services/amocrm/amocrm_api_client'
 
 export default class IntegrationController {
   /**
-   * @index
    * @operationId getStatus
    * @tag General
    * @summary Получить статус всех сервисов
@@ -37,12 +36,11 @@ export default class IntegrationController {
   }
 
   /**
-   * @setSyncStartDate
    * @operationId setSyncStartDate
    * @tag Sync
    * @summary Установить дату начала синхронизации
    * @description Устанавливает дату для всех сервисов кроме AmoCRM. Выбрасывает ошибку, если дата уже установлена.
-   * @requestBody { "sync_start_date": "2024-01-01" }
+   * @requestBody - { "sync_start_date": "2024-01-01" }
    * @responseBody 200 - { "result": { "data": "success", "error": null } }
    * @responseBody 400 - { "result": { "data": null, "error": "date_already_set" } }
    */
@@ -73,12 +71,11 @@ export default class IntegrationController {
   }
 
   /**
-   * @setAmocrmConfig
    * @operationId setAmocrmConfig
    * @tag AmoCRM
    * @summary Установить конфиг AmoCRM
    * @description Устанавливает domain, client_id и client_secret. Выбрасывает ошибку, если конфиг уже заполнен.
-   * @requestBody { "domain": "example.amo.ru", "client_id": "...", "client_secret": "..." }
+   * @requestBody - { "domain": "example.amo.ru", "client_id": "client_id_here", "client_secret": "client_secret_here" }
    * @responseBody 200 - { "result": { "data": "success", "error": null } }
    */
   public async setAmocrmConfig({ request, response }: HttpContext) {
@@ -108,12 +105,11 @@ export default class IntegrationController {
   }
 
   /**
-   * @installToken
    * @operationId installToken
    * @tag General
    * @summary Установить токен (универсальный)
    * @description Проверяет токен (ping) и сохраняет его для указанного сервиса.
-   * @requestBody { "source": "yandex", "token": "..." }
+   * @requestBody - { "source": "yandex", "token": "token_here" }
    * @responseBody 200 - { "result": { "data": "success", "error": null } }
    */
   public async installToken({ request, response }: HttpContext) {
@@ -159,13 +155,13 @@ export default class IntegrationController {
       },
     })
   }
+
   /**
-   * @testNotification
    * @operationId testNotification
    * @tag General
    * @summary Отправить тестовое уведомление
    * @description Отправляет тестовое уведомление в Telegram-бот через BullMQ.
-   * @requestBody { "module": "test", "message": "Manual test" }
+   * @requestBody - { "module": "test", "message": "Manual test" }
    * @responseBody 200 - { "result": { "data": "enqueued", "error": null } }
    */
   public async testNotification({ request, response }: HttpContext) {
@@ -184,12 +180,11 @@ export default class IntegrationController {
   }
 
   /**
-   * @forceSync
    * @operationId forceSync
    * @tag Sync
    * @summary Принудительный запуск синхронизации
    * @description Ставит задачу в очередь BullMQ с флагом force: true. Игнорирует статус ERROR.
-   * @param source - Источник синхронизации (yandex, amocrm)
+   * @param {string} source - Источник синхронизации (yandex, amocrm)
    * @responseBody 200 - { "result": { "data": "enqueued", "error": null } }
    * @responseBody 404 - { "result": { "data": null, "error": "source_not_found" } }
    */

@@ -11,12 +11,11 @@ import { YandexSyncService } from '#services/sync/yandex_sync_service'
  */
 export default class YandexIntegrationController {
   /**
-   * @setupSettings
    * @operationId setupSettings
    * @tag Yandex
    * @summary Первичная настройка Яндекса
    * @description Установка токена и даты начала синхронизации.
-   * @requestBody {"token": "string", "sync_start_date": "string"}
+   * @requestBody - {"token": "token_here", "sync_start_date": "2024-01-01"}
    * @responseBody 200 - {"status": "success", "message": "saved"}
    */
   public async setupSettings({ request, response }: HttpContext) {
@@ -67,11 +66,10 @@ export default class YandexIntegrationController {
   }
 
   /**
-   * @updateToken
    * @operationId updateToken
    * @tag Yandex
    * @summary Обновить токен Яндекса
-   * @requestBody {"token": "string"}
+   * @requestBody - {"token": "new_token_here"}
    * @responseBody 200 - {"status": "success", "message": "saved"}
    */
   public async updateToken({ request, response }: HttpContext) {
@@ -103,7 +101,6 @@ export default class YandexIntegrationController {
   }
 
   /**
-   * @status
    * @operationId getStatus
    * @tag Yandex
    * @summary Статус интеграции Яндекс
@@ -139,7 +136,6 @@ export default class YandexIntegrationController {
   }
 
   /**
-   * @sync
    * @operationId triggerSync
    * @tag Yandex
    * @summary Запустить синхронизацию

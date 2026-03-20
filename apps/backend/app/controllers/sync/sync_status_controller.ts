@@ -3,7 +3,6 @@ import IntegrationMetadata, { SyncStatus } from '#models/integration_metadata'
 
 export default class SyncStatusController {
   /**
-   * @index
    * @operationId getGlobalStatus
    * @tag Global
    * @summary Общий статус
