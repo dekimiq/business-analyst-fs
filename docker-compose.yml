@@ -13,6 +13,11 @@ services:
       - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/20-init.sh
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -23,46 +28,70 @@ services:
       - "6379:6379"
 
   backend:
-    build: ./apps/backend
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
     env_file: .env
     environment:
       TZ: 'UTC'
+      DB_HOST: postgres
+      REDIS_HOST: redis
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   bot-interaction:
-    build: ./apps/bot-interaction
+    build:
+      context: .
+      dockerfile: apps/bot-interaction/Dockerfile
     env_file: .env
     environment:
       TZ: 'UTC'
+      DB_HOST: postgres
+      REDIS_HOST: redis
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   ai-module:
-    build: ./apps/ai-module
+    build:
+      context: .
+      dockerfile: apps/ai-module/Dockerfile
     env_file: .env
     environment:
       TZ: 'UTC'
+      DB_HOST: postgres
+      BACKEND_API_URL: http://backend:3333
     depends_on:
-      - postgres
-      - backend
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
 
   node-cron:
-    build: ./apps/node-cron
+    build:
+      context: .
+      dockerfile: apps/node-cron/Dockerfile
     env_file: .env
     environment:
       TZ: 'UTC'
+      DB_HOST: postgres
+      REDIS_HOST: redis
     depends_on:
-      - redis
+      redis:
+        condition: service_started
 
   nginx:
     image: nginx:alpine
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf
     ports:
-      - "80:80"
+      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_SSL_PORT:-443}:443"
     depends_on:
       - backend
 

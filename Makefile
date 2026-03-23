@@ -1,4 +1,4 @@
-.PHONY: migrate migrate-fresh generate-key
+.PHONY: migrate migrate-fresh generate-key dev dev-backend
 
 # Запуск миграций для всех необходимых проектов
 migrate:
@@ -22,13 +22,40 @@ seed:
 generate-key:
 	cd apps/backend && node ace generate:key
 
-# Запуск контейнера
+# Запуск только инфраструктуры (БД, Редис)
 up:
 	docker compose up -d postgres redis
 
-# Остановка контейнера
-down:
+# Полная сборка всех образов
+build:
+	docker compose build
+
+# Запуск всего стека
+dc-up:
+	docker compose up -d
+
+# Остановка и удаление контейнеров
+dc-down:
 	docker compose down
+
+# Первичное развертывание: сборка, запуск, миграции и сиды
+setup: build dc-up
+	@echo "Waiting for database to be ready..."
+	@sleep 10
+	@echo "Running migrations..."
+	-docker compose exec backend node ace.js migration:run
+	docker compose exec bot-interaction node --experimental-strip-types /app/node_modules/.bin/knex migrate:latest --knexfile knexfile.ts
+	docker compose exec node-cron node --experimental-strip-types /app/node_modules/.bin/knex migrate:latest --knexfile knexfile.ts
+	@echo "Running seeds..."
+	docker compose exec backend node ace.js db:seed
+	-docker compose exec bot-interaction node --experimental-strip-types /app/node_modules/.bin/knex seed:run --knexfile knexfile.ts
+	-docker compose exec node-cron node --experimental-strip-types /app/node_modules/.bin/knex seed:run --knexfile knexfile.ts
+	@echo "Restarting services to ensure all configs are picked up..."
+	docker compose restart backend bot-interaction node-cron ai-module
+	@echo "Setup complete!"
+
+# Остановка и зачистка
+down: dc-down
 
 # linter & Prettier
 check:
@@ -36,3 +63,11 @@ check:
 
 check-fix:
 	npm run check-fix
+
+# Запуск всех сервисов в dev-режиме
+dev:
+	npm run dev
+
+# Запуск только бэкенда в dev-режиме
+dev-backend:
+	npm run dev --workspace=@project/backend
