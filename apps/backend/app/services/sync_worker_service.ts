@@ -43,8 +43,8 @@ export class SyncWorkerService {
       }
     )
 
-    this.worker.on('failed', async (job, err) => {
-      await this.logger.error(`Задача ${job?.name} завершилась с ошибкой: ${err.message}`)
+    this.worker.on('failed', async (job: Job | undefined, err: Error) => {
+      await this.logger.warn(`Задача ${job?.name} (ID: ${job?.id}) провалена: ${err.message}`)
     })
 
     this.logger.info('Воркер для очереди "sync" успешно запущен')

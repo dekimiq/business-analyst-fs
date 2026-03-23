@@ -472,9 +472,9 @@ export class YandexSyncService implements ISyncService {
       meta.lastError = error instanceof ApiReportUnpossible ? 'report_unavailable' : 'timeout'
       this.logger.warn(`Синхронизация прервана на отчетах: ${message}`)
     } else if (error instanceof SyncError) {
-      meta.syncStatus = SyncStatus.ERROR
+      meta.syncStatus = SyncStatus.PARTIAL
       meta.lastError = message
-      this.logger.error(`Ошибка метаданных: ${message}`)
+      this.logger.warn(`Предупреждение конфигурации Yandex: ${message}`)
     } else {
       meta.syncStatus = SyncStatus.PARTIAL
       meta.lastError = message

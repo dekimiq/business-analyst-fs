@@ -177,9 +177,10 @@ export class AmocrmSyncService implements ISyncService {
 
       for (const meta of pendingSources) {
         if (meta.syncStatus === SyncStatus.ERROR) {
-          throw new ApiFatalError(
-            `Источник ${meta.source} в статусе ERROR: ${meta.lastError}. Невозможно сопоставить сделки.`
+          this.logger.warn(
+            `Источник ${meta.source} в статусе ERROR: ${meta.lastError}. Ожидание продолжается...`
           )
+          continue
         }
 
         if (meta.syncStatus === null) {
@@ -436,9 +437,9 @@ export class AmocrmSyncService implements ISyncService {
       meta.lastError = 'timeout'
       this.logger.warn(`Синхронизация AmoCRM прервана (timeout): ${message}`)
     } else if (error instanceof SyncError) {
-      meta.syncStatus = SyncStatus.ERROR
+      meta.syncStatus = SyncStatus.PARTIAL
       meta.lastError = message
-      this.logger.error(`Ошибка метаданных AmoCRM: ${message}`)
+      this.logger.warn(`Предупреждение конфигурации AmoCRM: ${message}`)
     } else {
       meta.syncStatus = SyncStatus.PARTIAL
       meta.lastError = message

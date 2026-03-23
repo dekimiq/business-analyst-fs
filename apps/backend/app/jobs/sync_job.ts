@@ -35,7 +35,7 @@ export default class SyncJob {
     const service = await orchestrator.getService(payload.source)
 
     if (!service) {
-      await logger.error(
+      await logger.warn(
         `SyncService для источника '${payload.source}' не зарегистрирован или недоступен (нет токена)`
       )
       return
@@ -46,9 +46,20 @@ export default class SyncJob {
       await service.sync(!!payload.force)
       await logger.info('Задача синхронизации успешно завершена')
     } catch (error) {
-      await logger.error(
-        `Ошибка выполнения задачи синхронизации:: ${error instanceof Error ? error.message : String(error)}`
-      )
+      const message = error instanceof Error ? error.message : String(error)
+
+      // Ошибки ожидания справочников или отсутствия токена — это WARN
+      if (
+        message.toLowerCase().includes('таймауту') ||
+        message.toLowerCase().includes('token') ||
+        message.toLowerCase().includes('метаданных') ||
+        message.toLowerCase().includes('credentials')
+      ) {
+        await logger.warn(`Задача синхронизации приостановлена (ожидание): ${message}`)
+        return
+      }
+
+      await logger.warn(`Ошибка выполнения задачи синхронизации:: ${message}`)
       throw error
     }
   }
