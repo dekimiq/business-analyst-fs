@@ -4,6 +4,7 @@ import Ad from './ad.js'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
 
 export default class DailyStat extends BaseModel {
+  public static table = 'backend.daily_stats'
   @column({ isPrimary: true })
   declare id: number
 

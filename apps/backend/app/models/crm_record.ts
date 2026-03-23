@@ -2,6 +2,7 @@ import { DateTime } from 'luxon'
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 
 export default class CrmRecord extends BaseModel {
+  public static table = 'backend.crm_records'
   @column({ isPrimary: true })
   declare id: number
 

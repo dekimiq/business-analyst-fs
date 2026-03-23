@@ -4,6 +4,7 @@ import AdGroup from './ad_group.js'
 import type { HasMany } from '@adonisjs/lucid/types/relations'
 
 export default class Campaign extends BaseModel {
+  public static table = 'backend.campaigns'
   @column({ isPrimary: true })
   declare id: number
 

@@ -17,7 +17,7 @@ export enum ReferenceSyncPhase {
 }
 
 export default class IntegrationMetadata extends BaseModel {
-  public static table = 'integration_metadata'
+  public static table = 'backend.integration_metadata'
 
   @column({ isPrimary: true })
   declare id: number
