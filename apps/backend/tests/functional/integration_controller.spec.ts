@@ -164,7 +164,6 @@ test.group('IntegrationController (Functional)', (group) => {
   })
 
   test('POST /tokens/install - amocrm success with ping', async ({ client, assert }) => {
-    // Setup config first
     await client.post('/amocrm/config').json({
       domain: 'test.amocrm.ru',
       client_id: '12345678901',
@@ -176,7 +175,6 @@ test.group('IntegrationController (Functional)', (group) => {
     const response = await client.post('/tokens/install').json({
       source: 'amocrm',
       token: 'amo_token_123456',
-      long_token: 'amo_token_123456',
     })
 
     response.assertStatus(200)
