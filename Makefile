@@ -2,7 +2,7 @@
 
 # Запуск миграций для всех необходимых проектов
 migrate:
-	cd apps/backend && node ace migration:run
+	cd apps/backend && node ace migration:run --force
 	npm run migrate --workspace=@project/bot-interaction
 	npm run migrate --workspace=@project/node-cron
 
@@ -34,7 +34,7 @@ build:
 dc-up:
 	docker compose up -d
 
-# Остановка и удаление контейнеров
+# Остановка контейнеров
 dc-down:
 	docker compose down
 
@@ -54,7 +54,7 @@ setup: build dc-up
 	docker compose restart backend bot-interaction node-cron ai-module
 	@echo "Setup complete!"
 
-# Остановка и зачистка
+# Остановка
 down: dc-down
 
 # linter & Prettier
