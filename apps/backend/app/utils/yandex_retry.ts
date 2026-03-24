@@ -18,7 +18,7 @@ const statusesReportWaiting = [201, 202]
 
 export class YandexRetryService {
   private static async delay(ms: number) {
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV === 'test' && !process.env.FORCE_DELAY) {
       return Promise.resolve()
     }
     return new Promise((resolve) => setTimeout(resolve, ms))
@@ -64,6 +64,9 @@ export class YandexRetryService {
             if (errorCodesRetryable.includes(errorCode)) {
               if (attempt < maxAttempts) {
                 const waitMs = yandexRetryConfig.retryDelaysMs[attempt] || 60000
+                console.log(
+                  `[YandexRetry] Error ${errorCode}. Waiting ${waitMs}ms before retry (attempt ${attempt + 1})...`
+                )
                 await this.delay(waitMs)
                 attempt++
                 continue
