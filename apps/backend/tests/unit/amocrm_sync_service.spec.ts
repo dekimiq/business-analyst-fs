@@ -102,17 +102,17 @@ test.group('AmocrmSyncService: Логика интеграции', (group) => {
     await setupAmocrmMeta()
     await setupYandexMeta(ReferenceSyncPhase.DONE)
 
-    const c1 = await Campaign.create({ source: 'yandex', campaignId: 40432140, name: 'C1' })
+    const c1 = await Campaign.create({ source: 'yandex', campaignId: '40432140', name: 'C1' })
     const g1 = await AdGroup.create({
       source: 'yandex',
-      groupId: 3664899912,
-      campaignId: c1.id,
+      groupId: '3664899912',
+      campaignPk: c1.id,
       name: 'G1',
     })
     const a1 = await Ad.create({
       source: 'yandex',
-      adId: 6928734901,
-      groupId: g1.id,
+      adId: '6928734901',
+      groupPk: g1.id,
       title: 'A1',
     })
 
@@ -153,9 +153,9 @@ test.group('AmocrmSyncService: Логика интеграции', (group) => {
     assert.equal(recordsCounts1[0].$extras.total, 10)
 
     const firstRecord = await CrmRecord.query().where('deal_id', '10000001').firstOrFail()
-    assert.equal(firstRecord.campaignId, c1.id)
-    assert.equal(firstRecord.groupId, g1.id)
-    assert.equal(firstRecord.adId, a1.id)
+    assert.equal(firstRecord.campaignPk, c1.id)
+    assert.equal(firstRecord.groupPk, g1.id)
+    assert.equal(firstRecord.adPk, a1.id)
     assert.equal(firstRecord.referrer, 'yandex')
 
     // ЭТАП 2: Инкрементальная проверка

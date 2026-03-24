@@ -36,8 +36,66 @@ export const plugins: Config['plugins'] = [
  * The setup functions are executed before all the tests
  * The teardown functions are executed after all the tests
  */
+import pkg from 'pg'
+const { Client } = pkg
+import { env } from '@project/env'
+
+async function ensureTestDatabase() {
+  const testDbName = `${env.DB_NAME}_test`
+
+  const client = new Client({
+    host: env.DB_HOST,
+    port: env.DB_PORT,
+    user: env.POSTGRES_USER,
+    password: env.POSTGRES_PASSWORD,
+    database: 'postgres',
+  })
+
+  try {
+    await client.connect()
+    const res = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [testDbName])
+
+    if (res.rowCount === 0) {
+      console.log(`📡 Creating test database: ${testDbName}...`)
+      await client.query(`CREATE DATABASE "${testDbName}"`)
+    }
+  } catch (error: any) {
+    console.error(`❌ Error ensuring test database: ${error.message}`)
+  } finally {
+    await client.end()
+  }
+
+  const testClient = new Client({
+    host: env.DB_HOST,
+    port: env.DB_PORT,
+    user: env.POSTGRES_USER,
+    password: env.POSTGRES_PASSWORD,
+    database: testDbName,
+  })
+
+  try {
+    await testClient.connect()
+    await testClient.query('CREATE SCHEMA IF NOT EXISTS backend')
+    // Даем права юзеру бэкенда на работу в этой схеме
+    await testClient.query(`GRANT ALL ON SCHEMA backend TO "${env.DB_USER_BACKEND}"`)
+    await testClient.query(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA backend GRANT ALL ON TABLES TO "${env.DB_USER_BACKEND}"`
+    )
+    console.log(`✅ Schema 'backend' ensured in ${testDbName}`)
+  } catch (error: any) {
+    console.error(`❌ Error ensuring 'backend' schema: ${error.message}`)
+  } finally {
+    await testClient.end()
+  }
+}
+
 export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
-  setup: [],
+  setup: [
+    async () => {
+      await ensureTestDatabase()
+      await testUtils.db().migrate()
+    },
+  ],
   teardown: [],
 }
 
