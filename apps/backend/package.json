@@ -54,6 +54,7 @@
     "@types/luxon": "^3.7.1",
     "@types/nock": "^10.0.3",
     "@types/node": "~24.11.0",
+    "@types/pg": "^8.20.0",
     "eslint": "^10.0.2",
     "hot-hook": "^1.0.0",
     "nock": "^14.0.11",

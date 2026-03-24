@@ -11,7 +11,7 @@ const dbConfig = defineConfig({
         port: env.DB_PORT,
         user: env.DB_USER_BACKEND,
         password: env.DB_PASSWORD_BACKEND,
-        database: env.DB_NAME,
+        database: env.NODE_ENV === 'test' ? `${env.DB_NAME}_test` : env.DB_NAME,
       },
       searchPath: ['backend'],
       migrations: {
