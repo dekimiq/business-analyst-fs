@@ -7,9 +7,9 @@ export default class extends BaseSchema {
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id')
 
-      table.bigInteger('group_id').notNullable()
+      table.text('group_id').notNullable()
       table
-        .integer('campaign_id')
+        .integer('campaign_pk')
         .unsigned()
         .references('id')
         .inTable('campaigns')

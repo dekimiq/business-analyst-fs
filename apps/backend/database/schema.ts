@@ -9,7 +9,7 @@ import { DateTime } from 'luxon'
 
 export class AdGroupSchema extends BaseModel {
   static $columns = [
-    'campaignId',
+    'campaignPk',
     'createdAt',
     'groupId',
     'id',
@@ -19,7 +19,7 @@ export class AdGroupSchema extends BaseModel {
   ] as const
   $columns = AdGroupSchema.$columns
   @column()
-  declare campaignId: number | null
+  declare campaignPk: number | null
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime | null
   @column()
@@ -41,7 +41,7 @@ export class AdSchema extends BaseModel {
     'conditionId',
     'conditionName',
     'createdAt',
-    'groupId',
+    'groupPk',
     'id',
     'source',
     'text',
@@ -60,7 +60,7 @@ export class AdSchema extends BaseModel {
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime | null
   @column()
-  declare groupId: number | null
+  declare groupPk: number | null
   @column({ isPrimary: true })
   declare id: number
   @column()
@@ -109,8 +109,10 @@ export class CampaignSchema extends BaseModel {
 export class CrmRecordSchema extends BaseModel {
   static $columns = [
     'adId',
+    'adPk',
     'budget',
     'campaignId',
+    'campaignPk',
     'city',
     'comment',
     'companyName',
@@ -119,6 +121,7 @@ export class CrmRecordSchema extends BaseModel {
     'dealName',
     'dealStage',
     'groupId',
+    'groupPk',
     'id',
     'price',
     'product',
@@ -138,11 +141,15 @@ export class CrmRecordSchema extends BaseModel {
   ] as const
   $columns = CrmRecordSchema.$columns
   @column()
-  declare adId: bigint | number | null
+  declare adId: string | null
+  @column()
+  declare adPk: bigint | number | null
   @column()
   declare budget: string | null
   @column()
-  declare campaignId: bigint | number | null
+  declare campaignId: string | null
+  @column()
+  declare campaignPk: bigint | number | null
   @column()
   declare city: string | null
   @column()
@@ -158,7 +165,9 @@ export class CrmRecordSchema extends BaseModel {
   @column()
   declare dealStage: string | null
   @column()
-  declare groupId: bigint | number | null
+  declare groupId: string | null
+  @column()
+  declare groupPk: bigint | number | null
   @column({ isPrimary: true })
   declare id: number
   @column()
@@ -195,7 +204,7 @@ export class CrmRecordSchema extends BaseModel {
 
 export class DailyStatSchema extends BaseModel {
   static $columns = [
-    'adId',
+    'adPk',
     'avgCpc',
     'avgCpm',
     'clicks',
@@ -209,7 +218,7 @@ export class DailyStatSchema extends BaseModel {
   ] as const
   $columns = DailyStatSchema.$columns
   @column()
-  declare adId: number | null
+  declare adPk: number | null
   @column()
   declare avgCpc: string | null
   @column()

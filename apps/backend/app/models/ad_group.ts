@@ -10,10 +10,10 @@ export default class AdGroup extends BaseModel {
   declare id: number
 
   @column()
-  declare groupId: number
+  declare groupId: string
 
-  @column()
-  declare campaignId: number
+  @column({ columnName: 'campaign_pk' })
+  declare campaignPk: number
 
   @column()
   declare source: string
@@ -27,7 +27,9 @@ export default class AdGroup extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
-  @belongsTo(() => Campaign)
+  @belongsTo(() => Campaign, {
+    foreignKey: 'campaignPk',
+  })
   declare campaign: BelongsTo<typeof Campaign>
 
   @hasMany(() => Ad)

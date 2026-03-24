@@ -10,10 +10,10 @@ export default class Ad extends BaseModel {
   declare id: number
 
   @column()
-  declare adId: number
+  declare adId: string
 
-  @column()
-  declare groupId: number
+  @column({ columnName: 'group_pk' })
+  declare groupPk: number
 
   @column()
   declare source: string
@@ -31,7 +31,7 @@ export default class Ad extends BaseModel {
   declare conditionName: string | null
 
   @column()
-  declare conditionId: number | null
+  declare conditionId: string | null
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -39,7 +39,9 @@ export default class Ad extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
-  @belongsTo(() => AdGroup)
+  @belongsTo(() => AdGroup, {
+    foreignKey: 'groupPk',
+  })
   declare adGroup: BelongsTo<typeof AdGroup>
 
   @hasMany(() => DailyStat)

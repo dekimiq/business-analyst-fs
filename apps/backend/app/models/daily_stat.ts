@@ -8,8 +8,8 @@ export default class DailyStat extends BaseModel {
   @column({ isPrimary: true })
   declare id: number
 
-  @column()
-  declare adId: number
+  @column({ columnName: 'ad_pk' })
+  declare adPk: number
 
   @column.date()
   declare date: DateTime
@@ -38,6 +38,8 @@ export default class DailyStat extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
-  @belongsTo(() => Ad)
+  @belongsTo(() => Ad, {
+    foreignKey: 'adPk',
+  })
   declare ad: BelongsTo<typeof Ad>
 }

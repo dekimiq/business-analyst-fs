@@ -9,14 +9,23 @@ export default class CrmRecord extends BaseModel {
   @column()
   declare dealId: string | null
 
-  @column()
-  declare campaignId: number | null
+  @column({ columnName: 'campaign_pk' })
+  declare campaignPk: number | null
+
+  @column({ columnName: 'group_pk' })
+  declare groupPk: number | null
+
+  @column({ columnName: 'ad_pk' })
+  declare adPk: number | null
 
   @column()
-  declare groupId: number | null
+  declare campaignId: string | null
 
   @column()
-  declare adId: number | null
+  declare groupId: string | null
+
+  @column()
+  declare adId: string | null
 
   @column()
   declare source: string | null

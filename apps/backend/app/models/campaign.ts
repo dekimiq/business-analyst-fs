@@ -9,7 +9,7 @@ export default class Campaign extends BaseModel {
   declare id: number
 
   @column()
-  declare campaignId: number
+  declare campaignId: string
 
   @column()
   declare source: string
