@@ -21,6 +21,7 @@ import { SyncLoggerService } from '#services/sync/sync_logger_service'
 const SOURCE = 'amocrm'
 const REFERENCE_CHECK_INTERVAL_MS = 10_000
 const MAX_REFERENCE_CHECK_ATTEMPTS = 6
+const MAX_BIGINT = BigInt('9223372036854775807')
 
 export class AmocrmSyncService implements ISyncService {
   public readonly source = SOURCE
@@ -77,13 +78,15 @@ export class AmocrmSyncService implements ISyncService {
 
     meta.syncStatus = SyncStatus.PARTIAL
     meta.referenceSyncPhase = null
-    meta.syncStartDate = null
     meta.syncedUntil = null
     await meta.save()
 
-    let maxUpdatedAt = 0
+    const fromTimestamp = meta.syncStartDate ? Math.floor(meta.syncStartDate.toSeconds()) : 0
+    let maxUpdatedAt = fromTimestamp
     let pageCount = 0
-    let page = await AmocrmRetryService.call(() => this.api.getLeads())
+    let page = await AmocrmRetryService.call(() =>
+      this.api.getLeads(fromTimestamp > 0 ? { updatedAt: { from: fromTimestamp } } : undefined)
+    )
 
     while (true) {
       if (page.data.length > 0) {
@@ -220,8 +223,14 @@ export class AmocrmSyncService implements ISyncService {
         const matches = strValue.match(/\d{7,19}/g)
         if (matches) {
           for (const match of matches) {
-            const cleanedId = match.replace(/^0+/, '') || '0'
-            ids.add(cleanedId)
+            const cleanedId = (match.replace(/^0+/, '') || '0').trim()
+            try {
+              if (BigInt(cleanedId) <= MAX_BIGINT) {
+                ids.add(cleanedId)
+              }
+            } catch (e) {
+              // skip non-numeric stuff
+            }
           }
         }
       }
@@ -231,8 +240,14 @@ export class AmocrmSyncService implements ISyncService {
       const matches = lead.name.match(/\d{7,19}/g)
       if (matches) {
         for (const match of matches) {
-          const cleanedId = match.replace(/^0+/, '') || '0'
-          ids.add(cleanedId)
+          const cleanedId = (match.replace(/^0+/, '') || '0').trim()
+          try {
+            if (BigInt(cleanedId) <= MAX_BIGINT) {
+              ids.add(cleanedId)
+            }
+          } catch (e) {
+            // skip
+          }
         }
       }
     }
@@ -241,71 +256,92 @@ export class AmocrmSyncService implements ISyncService {
   }
 
   private async findMatchingAdIds(ids: Set<string>): Promise<{
-    campaignId: number | null
-    groupId: number | null
-    adId: number | null
+    campaignId: string | null
+    groupId: string | null
+    adId: string | null
+    campaignPk: number | null
+    groupPk: number | null
+    adPk: number | null
     source: string | null
   }> {
     const idArray = Array.from(ids)
-
-    if (idArray.length === 0) {
-      return { campaignId: null, groupId: null, adId: null, source: null }
+    if (idArray.length > 0) {
+      this.logger.info(`Поиск рекламных связей для ID: ${idArray.join(', ')}`)
     }
 
-    const ads = await Ad.query()
-      .whereIn(
-        'ad_id',
-        idArray.map((id) => Number(id))
-      )
-      .limit(1)
-      .first()
+    if (idArray.length === 0) {
+      return {
+        campaignId: null,
+        groupId: null,
+        adId: null,
+        campaignPk: null,
+        groupPk: null,
+        adPk: null,
+        source: null,
+      }
+    }
+
+    // 1. Ищем по ad_id (самый глубокий уровень)
+    const ads = await Ad.query().whereIn('adId', idArray).preload('adGroup').limit(1).first()
 
     if (ads) {
-      const adGroup = await AdGroup.query().where('id', ads.groupId).first()
+      const adGroup = ads.adGroup
+      const campaign = adGroup ? await Campaign.findBy('id', adGroup.campaignPk) : null
 
       return {
-        campaignId: adGroup?.campaignId ?? null,
-        groupId: adGroup?.id ?? null,
-        adId: ads.id,
+        campaignId: campaign?.campaignId ?? null,
+        groupId: adGroup?.groupId ?? null,
+        adId: ads.adId,
+        campaignPk: campaign?.id ?? null,
+        groupPk: adGroup?.id ?? null,
+        adPk: ads.id,
         source: ads.source,
       }
     }
 
+    // 2. Ищем по group_id
     const adGroups = await AdGroup.query()
-      .whereIn(
-        'group_id',
-        idArray.map((id) => Number(id))
-      )
+      .whereIn('groupId', idArray)
+      .preload('campaign')
       .limit(1)
       .first()
 
     if (adGroups) {
       return {
-        campaignId: adGroups.campaignId,
-        groupId: adGroups.id,
+        campaignId: adGroups.campaign.campaignId,
+        groupId: adGroups.groupId,
         adId: null,
+        campaignPk: adGroups.campaign.id,
+        groupPk: adGroups.id,
+        adPk: null,
         source: adGroups.source,
       }
     }
 
-    const campaigns = await Campaign.query()
-      .whereIn(
-        'campaign_id',
-        idArray.map((id) => Number(id))
-      )
-      .limit(1)
-      .first()
+    // 3. Ищем по campaign_id
+    const campaigns = await Campaign.query().whereIn('campaignId', idArray).limit(1).first()
 
     if (campaigns) {
       return {
-        campaignId: campaigns.id,
+        campaignId: campaigns.campaignId,
         groupId: null,
         adId: null,
+        campaignPk: campaigns.id,
+        groupPk: null,
+        adPk: null,
         source: campaigns.source,
       }
     }
 
-    return { campaignId: null, groupId: null, adId: null, source: null }
+    return {
+      campaignId: null,
+      groupId: null,
+      adId: null,
+      campaignPk: null,
+      groupPk: null,
+      adPk: null,
+      source: null,
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -328,6 +364,9 @@ export class AmocrmSyncService implements ISyncService {
           campaignId,
           groupId,
           adId,
+          campaignPk,
+          groupPk,
+          adPk,
           source: adSource,
         } = await this.findMatchingAdIds(parsedIds)
 
@@ -366,6 +405,9 @@ export class AmocrmSyncService implements ISyncService {
             campaignId,
             groupId,
             adId,
+            campaignPk,
+            groupPk,
+            adPk,
 
             source: SOURCE,
             referrer: adSource || null, // Сохраняем рекламный источник (yandex, avito и т.д.)

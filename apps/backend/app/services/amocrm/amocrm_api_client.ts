@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { Client } from 'amocrm-js'
 import type { IAmocrmApiClient, AmoLeadPage, AmoLeadFilter } from '#contracts/i_amocrm_api_client'
 import type { AmoLead } from '#types/amocrm'
@@ -43,11 +45,51 @@ export class AmocrmApiClient implements IAmocrmApiClient {
     })
   }
 
+  // ---------------------------------------------------------------------------
+  // Logging (Debug)
+  // ---------------------------------------------------------------------------
+
+  private async logApiInteraction(
+    method: string,
+    url: string,
+    params?: any,
+    responseData?: any,
+    error?: any
+  ) {
+    try {
+      const debugDir = path.join(process.cwd(), '..', '..', 'debug')
+      await fs.mkdir(debugDir, { recursive: true })
+
+      const logPath = path.join(debugDir, 'amocrm_api_debug.json')
+      const entry =
+        JSON.stringify({
+          timestamp: new Date().toISOString(),
+          method,
+          url,
+          params: params || null,
+          response: responseData || null,
+          error: error
+            ? {
+                message: error.message,
+                status: error.response?.status || error.response?.statusCode,
+                data: error.response?.data,
+              }
+            : null,
+        }) + '\n'
+
+      await fs.appendFile(logPath, entry, 'utf-8')
+    } catch (err) {
+      console.error('[AmocrmApiClient] Error writing debug log:', err)
+    }
+  }
+
   async ping(): Promise<boolean> {
     try {
-      await this.client.request.make('GET', '/api/v4/account')
+      const res = await this.client.request.make('GET', '/api/v4/account')
+      await this.logApiInteraction('GET', '/api/v4/account', null, res.data)
       return true
-    } catch {
+    } catch (error) {
+      await this.logApiInteraction('GET', '/api/v4/account', null, null, error)
       return false
     }
   }
@@ -70,7 +112,14 @@ export class AmocrmApiClient implements IAmocrmApiClient {
       if (filter.updatedAt.to) params['filter[updated_at][to]'] = filter.updatedAt.to
     }
 
-    const response: any = await this.client.request.make('GET', '/api/v4/leads', params)
+    let response: any
+    try {
+      response = await this.client.request.make('GET', '/api/v4/leads', params)
+      await this.logApiInteraction('GET', '/api/v4/leads', params, response.data)
+    } catch (error) {
+      await this.logApiInteraction('GET', '/api/v4/leads', params, null, error)
+      throw error
+    }
 
     const statusCode =
       response.response?.status || response.response?.statusCode || response.data?.status
@@ -82,63 +131,58 @@ export class AmocrmApiClient implements IAmocrmApiClient {
       throw error
     }
 
-    const data = response.data as {
-      _embedded?: {
-        leads?: AmoLead[]
-      }
-      _page?: number
-      _page_count?: number
-    }
-
+    const data = response.data as any
     const leads = data._embedded?.leads || []
-    const currentPage = data._page || 1
-    const pageCount = data._page_count || 1
-    const hasNext = currentPage < pageCount
+    const hasNext = !!data._links?.next
 
-    return {
-      data: leads,
-      hasNext,
-      next: async (): Promise<AmoLeadPage> => {
-        if (!hasNext) {
-          const emptyPage: AmoLeadPage = {
-            data: [],
-            hasNext: false,
-            next: async () => emptyPage,
+    const createPage = (leadsData: AmoLead[], nextData: any): AmoLeadPage => {
+      const currentLeads = leadsData || []
+      const hasMore = !!nextData?._links?.next
+      const nextUrl = nextData?._links?.next?.href
+
+      return {
+        data: currentLeads,
+        hasNext: hasMore,
+        next: async (): Promise<AmoLeadPage> => {
+          if (!hasMore || !nextUrl) {
+            const emptyPage: AmoLeadPage = {
+              data: [],
+              hasNext: false,
+              next: async () => emptyPage,
+            }
+            return emptyPage
           }
-          return emptyPage
-        }
 
-        const nextParams = { ...params, page: currentPage + 1 }
-        const nextResponse = await this.client.request.make('GET', '/api/v4/leads', nextParams)
-        const nextData = nextResponse.data as {
-          _embedded?: {
-            leads?: AmoLead[]
+          // Извлекаем параметры из URL (или просто используем page+1)
+          // В документации AmoCRM лучше всего просто инкрементировать page
+          const url = new URL(nextUrl)
+          const nextParams = Object.fromEntries(url.searchParams.entries())
+
+          let nextRes: any
+          try {
+            nextRes = await this.client.request.make('GET', '/api/v4/leads', nextParams)
+            await this.logApiInteraction('GET', '/api/v4/leads', nextParams, nextRes.data)
+          } catch (error) {
+            await this.logApiInteraction('GET', '/api/v4/leads', nextParams, null, error)
+            throw error
           }
-          _page?: number
-          _page_count?: number
-        }
 
-        const nextLeads = nextData._embedded?.leads || []
-        const nextCurrentPage = nextData._page || currentPage + 1
-        const nextPageCount = nextData._page_count || pageCount
-
-        return {
-          data: nextLeads,
-          hasNext: nextCurrentPage < nextPageCount,
-          next: async () => {
-            throw new Error('next() already called - implement proper chaining if needed')
-          },
-        }
-      },
+          return createPage(nextRes.data?._embedded?.leads || [], nextRes.data)
+        },
+      }
     }
+
+    return createPage(leads, data)
   }
 
   async getLeadById(id: number): Promise<AmoLead | null> {
     try {
       const response = await this.client.request.make('GET', `/api/v4/leads/${id}`)
+      await this.logApiInteraction('GET', `/api/v4/leads/${id}`, null, response.data)
       return (response.data as AmoLead) || null
     } catch (error: unknown) {
       const err = error as { response?: { status?: number } }
+      await this.logApiInteraction('GET', `/api/v4/leads/${id}`, null, null, error)
       if (err.response?.status === 404) {
         return null
       }

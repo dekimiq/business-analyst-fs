@@ -215,7 +215,7 @@ export class YandexSyncService implements ISyncService {
 
           for (const c of campaigns) {
             await Campaign.updateOrCreate(
-              { source: SOURCE, campaignId: c.Id },
+              { source: SOURCE, campaignId: String(c.Id) },
               {
                 name: c.Name,
                 type: c.Type ?? null,
@@ -260,16 +260,16 @@ export class YandexSyncService implements ISyncService {
             }
 
             const campaignIdMap = new Map(
-              campaignRecords.map((c: any) => [Number(c.campaignId), c.id])
+              campaignRecords.map((c: any) => [String(c.campaignId), c.id])
             )
 
             for (const g of adGroups) {
-              const internalCampaignId = campaignIdMap.get(g.CampaignId)
-              if (!internalCampaignId) continue
+              const internalCampaignPk = campaignIdMap.get(String(g.CampaignId))
+              if (!internalCampaignPk) continue
 
               await AdGroup.updateOrCreate(
-                { source: SOURCE, groupId: g.Id },
-                { name: g.Name, campaignId: internalCampaignId },
+                { source: SOURCE, groupId: String(g.Id) },
+                { name: g.Name, campaignPk: internalCampaignPk },
                 { client: trx }
               )
             }
@@ -310,16 +310,16 @@ export class YandexSyncService implements ISyncService {
               throw new ApiFatalError('yandex_no_ads_found')
             }
 
-            const adGroupIdMap = new Map(adGroupRecords.map((g: any) => [Number(g.groupId), g.id]))
+            const adGroupIdMap = new Map(adGroupRecords.map((g: any) => [String(g.groupId), g.id]))
 
             for (const a of ads) {
-              const internalGroupId = adGroupIdMap.get(a.AdGroupId)
-              if (!internalGroupId) continue
+              const internalGroupPk = adGroupIdMap.get(String(a.AdGroupId))
+              if (!internalGroupPk) continue
 
               await Ad.updateOrCreate(
-                { source: SOURCE, adId: a.Id },
+                { source: SOURCE, adId: String(a.Id) },
                 {
-                  groupId: internalGroupId,
+                  groupPk: internalGroupPk,
                   title: a.TextAd?.Title ?? null,
                   text: a.TextAd?.Text ?? null,
                 },
@@ -417,19 +417,19 @@ export class YandexSyncService implements ISyncService {
 
     if (stats.length === 0) return
 
-    const yandexAdIds: number[] = Array.from(new Set(stats.map((s: any) => Number(s.AdId))))
-    const adRecords = await Ad.query().whereIn('ad_id', yandexAdIds).where('source', SOURCE)
-    const adIdMap = new Map(adRecords.map((a: any) => [Number(a.adId), a.id]))
+    const yandexAdIds: string[] = Array.from(new Set(stats.map((s: any) => String(s.AdId))))
+    const adRecords = await Ad.query().whereIn('adId', yandexAdIds).where('source', SOURCE)
+    const adIdMap = new Map(adRecords.map((a: any) => [String(a.adId), a.id]))
 
     await db.transaction(async (trx) => {
       for (const stat of stats) {
-        const internalAdId = adIdMap.get(stat.AdId)
-        if (!internalAdId) continue
+        const internalAdPk = adIdMap.get(String(stat.AdId))
+        if (!internalAdPk) continue
 
         const statDate = DateTime.fromISO(stat.Date, { zone: 'Europe/Moscow' }).startOf('day')
 
         await DailyStat.updateOrCreate(
-          { adId: internalAdId, date: statDate },
+          { adPk: internalAdPk, date: statDate },
           {
             impressions: stat.Impressions,
             clicks: stat.Clicks,

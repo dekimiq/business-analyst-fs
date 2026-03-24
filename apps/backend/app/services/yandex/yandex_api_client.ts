@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import axios, { type AxiosInstance } from 'axios'
 import { DateTime } from 'luxon'
 import type { IYandexApiClient } from '#contracts/i_yandex_api_client'
@@ -39,6 +41,72 @@ export class YandexApiClient implements IYandexApiClient {
         'Accept-Language': 'ru',
       },
     })
+
+    this.setupLogging()
+  }
+
+  // ---------------------------------------------------------------------------
+  // Logging (Debug)
+  // ---------------------------------------------------------------------------
+
+  private setupLogging() {
+    this.client.interceptors.request.use(async (config) => {
+      await this.logRequestResponse('request', {
+        url: config.url,
+        method: config.method,
+        headers: this.censorHeaders(config.headers as any),
+        data: config.data,
+      })
+      return config
+    })
+
+    this.client.interceptors.response.use(
+      async (response) => {
+        await this.logRequestResponse('response', {
+          url: response.config.url,
+          status: response.status,
+          headers: response.headers,
+          data: response.data,
+        })
+        return response
+      },
+      async (error) => {
+        await this.logRequestResponse('error', {
+          url: error.config?.url,
+          status: error.response?.status,
+          message: error.message,
+          data: error.response?.data,
+        })
+        return Promise.reject(error)
+      }
+    )
+  }
+
+  private async logRequestResponse(type: 'request' | 'response' | 'error', data: any) {
+    try {
+      const debugDir = path.join(process.cwd(), '..', '..', 'debug')
+      await fs.mkdir(debugDir, { recursive: true })
+
+      const logPath = path.join(debugDir, 'yandex_api_debug.json')
+      const entry = JSON.stringify({ timestamp: new Date().toISOString(), type, ...data }) + '\n'
+
+      await fs.appendFile(logPath, entry, 'utf-8')
+    } catch (err) {
+      console.error('[YandexApiClient] Error writing debug log:', err)
+    }
+  }
+
+  private censorHeaders(headers: Record<string, string>) {
+    const censored = { ...headers }
+    const authHeaders = ['Authorization', 'authorization']
+
+    for (const h of authHeaders) {
+      if (censored[h]) {
+        censored[h] = 'Bearer [CENSORED]'
+      }
+    }
+
+    return censored
   }
 
   // ---------------------------------------------------------------------------
