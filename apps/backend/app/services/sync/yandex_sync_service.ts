@@ -207,7 +207,11 @@ export class YandexSyncService implements ISyncService {
       try {
         await db.transaction(async (trx) => {
           const campaigns = await YandexRetryService.call(() => this.api.getCampaigns())
-          this.logger.info(`Получение кампаний: ${campaigns.length}`)
+          this.logger.info(`Получение кампаний из Яндекс: ${campaigns.length} шт.`)
+
+          if (campaigns.length === 0) {
+            throw new ApiFatalError('yandex_no_campaigns_found')
+          }
 
           for (const c of campaigns) {
             await Campaign.updateOrCreate(
@@ -236,6 +240,7 @@ export class YandexSyncService implements ISyncService {
         throw new ApiFatalError('campaigns_unknown')
       }
       meta.referenceSyncPhase = ReferenceSyncPhase.AD_GROUPS
+      this.logger.info(`Переход к фазе: ${meta.referenceSyncPhase}`)
       await meta.save()
     }
 
@@ -249,6 +254,10 @@ export class YandexSyncService implements ISyncService {
           if (campaignIds.length > 0) {
             const adGroups = await YandexRetryService.call(() => this.api.getAdGroups(campaignIds))
             this.logger.info(`Получение групп объявлений: ${adGroups.length}`)
+
+            if (adGroups.length === 0) {
+              throw new ApiFatalError('yandex_no_adgroups_found')
+            }
 
             const campaignIdMap = new Map(
               campaignRecords.map((c: any) => [Number(c.campaignId), c.id])
@@ -264,6 +273,8 @@ export class YandexSyncService implements ISyncService {
                 { client: trx }
               )
             }
+          } else {
+            throw new ApiFatalError('yandex_no_campaigns_in_db')
           }
         })
       } catch (error) {
@@ -280,6 +291,7 @@ export class YandexSyncService implements ISyncService {
         throw new ApiFatalError('adgroups_unknown')
       }
       meta.referenceSyncPhase = ReferenceSyncPhase.ADS
+      this.logger.info(`Переход к фазе: ${meta.referenceSyncPhase}`)
       await meta.save()
     }
 
@@ -293,6 +305,10 @@ export class YandexSyncService implements ISyncService {
           if (adGroupIds.length > 0) {
             const ads = await YandexRetryService.call(() => this.api.getAds(adGroupIds))
             this.logger.info(`Получение объявлений: ${ads.length}`)
+
+            if (ads.length === 0) {
+              throw new ApiFatalError('yandex_no_ads_found')
+            }
 
             const adGroupIdMap = new Map(adGroupRecords.map((g: any) => [Number(g.groupId), g.id]))
 
@@ -310,6 +326,8 @@ export class YandexSyncService implements ISyncService {
                 { client: trx }
               )
             }
+          } else {
+            throw new ApiFatalError('yandex_no_adgroups_in_db')
           }
         })
       } catch (error) {
@@ -328,10 +346,8 @@ export class YandexSyncService implements ISyncService {
       meta.referenceSyncPhase = ReferenceSyncPhase.DONE
       this.logger.info(`Фаза обновлена на: ${meta.referenceSyncPhase}`)
       await meta.save()
-      this.logger.info('Фаза сохранена в БД')
+      this.logger.info('Синхронизация структурных данных выполнена')
     }
-
-    this.logger.info('Синхронизация структурных данных выполнена')
   }
 
   private async syncDailyStatsBackwards(
