@@ -42,7 +42,23 @@ services:
       redis:
         condition: service_started
     ports:
-      - "3333:3333"
+      - "3000:3333"
+
+  backend-worker:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    command: ["node", "bin/console.js", "jobs:listen", "--queue=sync"]
+    env_file: .env
+    environment:
+      TZ: 'UTC'
+      DB_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   bot-interaction:
     build:
