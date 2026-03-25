@@ -28,6 +28,7 @@ export default defineConfig({
     () => import('@adonisjs/core/commands'),
     () => import('@adonisjs/lucid/commands'),
     () => import('@adonisjs/session/commands'),
+    () => import('adonisjs-jobs/commands'),
   ],
 
   /*
@@ -53,6 +54,7 @@ export default defineConfig({
     () => import('@adonisjs/cors/cors_provider'),
     () => import('#providers/api_provider'),
     () => import('#providers/sync_provider'),
+    () => import('adonisjs-jobs/jobs_provider'),
   ],
 
   /*

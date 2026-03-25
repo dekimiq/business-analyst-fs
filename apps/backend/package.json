@@ -76,9 +76,9 @@
     "@tuyau/core": "^1.0.0",
     "@vinejs/vine": "^4.3.0",
     "adonis-autoswagger": "^3.73.0",
+    "adonisjs-jobs": "^0.2.0",
     "amocrm-js": "^3.6.0",
     "axios": "^1.13.6",
-    "bullmq": "^5.70.4",
     "luxon": "^3.7.2",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2"
