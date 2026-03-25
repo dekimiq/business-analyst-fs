@@ -5,10 +5,10 @@ build
 .turbo
 coverage
 .DS_Store
-.clinerules
 .adonisjs
 .continue
 .vscode
-.agents
 .agent
 tmp
+debug
+docs
