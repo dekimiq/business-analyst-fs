@@ -1,3 +1,4 @@
+import { Job } from 'adonisjs-jobs'
 import SyncLog from '#models/sync_log'
 import { SyncLoggerService } from '#services/sync/sync_logger_service'
 
@@ -9,15 +10,7 @@ export interface CleanupJobPayload {
  * Job для автоматической очистки старых логов синхронизации.
  * Удаляет записи из таблицы sync_logs старше указанного срока (по умолчанию 3 месяца).
  */
-export default class CleanupLogsJob {
-  static get options() {
-    return {
-      removeOnFail: true,
-      removeOnComplete: true,
-      attempts: 1,
-    }
-  }
-
+export default class CleanupLogsJob extends Job {
   /**
    * Выполняет очистку логов.
    *

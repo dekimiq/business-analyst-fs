@@ -1,3 +1,4 @@
+import { Job } from 'adonisjs-jobs'
 import { SyncOrchestratorService } from '#services/sync/sync_orchestrator_service'
 import { SyncLoggerService } from '#services/sync/sync_logger_service'
 
@@ -12,15 +13,7 @@ export interface SyncJobPayload {
  * Использует DI для получения сервисов из IoC-контейнера.
  * Orchestrator создаёт sync-сервисы динамически на основе токена из IntegrationMetadata.
  */
-export default class SyncJob {
-  static get options() {
-    return {
-      removeOnFail: true,
-      removeOnComplete: true,
-      attempts: 1,
-    }
-  }
-
+export default class SyncJob extends Job {
   /**
    * Обрабатывает задачу синхронизации для указанного источника.
    *
