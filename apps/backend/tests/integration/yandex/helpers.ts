@@ -1,6 +1,9 @@
 import db from '@adonisjs/lucid/services/db'
 import { DateTime } from 'luxon'
-import IntegrationMetadata, { SyncStatus, ReferenceSyncPhase } from '#models/integration_metadata'
+import IntegrationMetadata, {
+  type SyncStatus,
+  type ReferenceSyncPhase,
+} from '#models/integration_metadata'
 
 // ─── DB helpers ───────────────────────────────────────────────────────────
 

@@ -55,6 +55,7 @@ export default defineConfig({
     () => import('#providers/api_provider'),
     () => import('#providers/sync_provider'),
     () => import('adonisjs-jobs/jobs_provider'),
+    () => import('@adonisjs/redis/redis_provider'),
   ],
 
   /*
@@ -90,6 +91,11 @@ export default defineConfig({
       {
         files: ['tests/functional/**/*.spec.{ts,js}'],
         name: 'functional',
+        timeout: 60000,
+      },
+      {
+        files: ['tests/integration/**/*.spec.{ts,js}'],
+        name: 'integration',
         timeout: 60000,
       },
     ],

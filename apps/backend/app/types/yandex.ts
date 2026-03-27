@@ -63,3 +63,48 @@ export interface YandexDailyStat {
   /** Средняя цена тысячи показов в микронах */
   AvgCpm: number
 }
+
+// ---------------------------------------------------------------------------
+// Changes API
+// ---------------------------------------------------------------------------
+
+/** Флаги того, что изменилось внутри кампании */
+export type YandexChangesIn = 'SELF' | 'CHILDREN' | 'STAT'
+
+export interface YandexCampaignChange {
+  CampaignId: number
+  ChangesIn: YandexChangesIn[]
+}
+
+/** Ответ Changes.checkCampaigns */
+export interface YandexCheckCampaignsResult {
+  Timestamp: string
+  Modified: YandexCampaignChange[]
+  NotFound: { CampaignIds: number[] }
+}
+
+/**
+ * Ответ универсального Changes.check.
+ * Поля появляются только если были запрошены в FieldNames.
+ */
+export interface YandexCheckResult {
+  Timestamp: string
+  Modified?: {
+    CampaignIds?: number[]
+    AdGroupIds?: number[]
+    AdIds?: number[]
+  }
+  NotFound?: {
+    CampaignIds?: number[]
+    AdGroupIds?: number[]
+    AdIds?: number[]
+  }
+  Unprocessed?: {
+    CampaignIds?: number[]
+    AdGroupIds?: number[]
+    AdIds?: number[]
+  }
+  CampaignsStat?: Array<{ CampaignId: number; BorderDate?: string }>
+}
+
+export type ChangeFieldName = 'CampaignIds' | 'AdGroupIds' | 'AdIds' | 'CampaignsStat'

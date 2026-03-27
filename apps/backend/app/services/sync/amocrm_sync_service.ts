@@ -78,7 +78,7 @@ export class AmocrmSyncService implements ISyncService {
 
     meta.syncStatus = SyncStatus.PARTIAL
     meta.referenceSyncPhase = null
-    meta.syncedUntil = null
+    meta.historicalSyncedUntil = null
     await meta.save()
 
     const fromTimestamp = meta.syncStartDate ? Math.floor(meta.syncStartDate.toSeconds()) : 0
@@ -449,7 +449,7 @@ export class AmocrmSyncService implements ISyncService {
       {
         lastTimestamp: null,
         syncStartDate: null,
-        syncedUntil: null,
+        historicalSyncedUntil: null,
         lastSuccessSyncDate: null,
         syncStatus: null,
         lastError: null,
