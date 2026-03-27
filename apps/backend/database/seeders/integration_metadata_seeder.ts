@@ -27,7 +27,7 @@ export default class IntegrationMetadataSeeder extends BaseSeeder {
         {
           lastTimestamp: null,
           syncStartDate: null,
-          syncedUntil: null,
+          historicalSyncedUntil: null,
           lastSuccessSyncDate: null,
           syncStatus: null,
           referenceSyncPhase: null,

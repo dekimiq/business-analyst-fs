@@ -10,6 +10,7 @@ export default class extends BaseSchema {
       table.text('ad_id').notNullable()
       table.integer('group_pk').unsigned().references('id').inTable('ad_groups').onDelete('CASCADE')
       table.string('source').notNullable()
+      table.string('status').nullable() // null = активно, 'DELETED' = удалено в Яндексе
       table.string('title').nullable()
       table.text('text').nullable()
       table.string('ad_platform').nullable()

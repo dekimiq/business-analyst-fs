@@ -3,9 +3,13 @@ import { BaseModel, column } from '@adonisjs/lucid/orm'
 import encryption from '@adonisjs/core/services/encryption'
 
 export enum SyncStatus {
-  PARTIAL = 'partial',
+  PARTIAL = 'partial', // Legacy, keep for AmoCRM compatibility for now
+  ERROR = 'error', // Legacy, keep for AmoCRM compatibility for now
+
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
   SUCCESS = 'success',
-  ERROR = 'error',
+  FAILED = 'failed',
 }
 
 export enum ReferenceSyncPhase {
@@ -32,7 +36,13 @@ export default class IntegrationMetadata extends BaseModel {
   declare syncStartDate: DateTime | null
 
   @column.date()
-  declare syncedUntil: DateTime | null
+  declare historicalSyncedUntil: DateTime | null
+
+  @column({
+    prepare: (value) => (value ? JSON.stringify(value) : null),
+    consume: (value) => (value ? (typeof value === 'string' ? JSON.parse(value) : value) : null),
+  })
+  declare historicalSyncState: Record<string, any> | null
 
   @column.date()
   declare lastSuccessSyncDate: DateTime | null

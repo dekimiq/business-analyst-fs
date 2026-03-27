@@ -16,6 +16,7 @@ export default class extends BaseSchema {
         .onDelete('CASCADE')
       table.string('source').notNullable()
       table.string('name').notNullable()
+      table.string('status').nullable() // null = активна, 'DELETED' = удалена в Яндексе
 
       table.unique(['group_id', 'source'])
 
