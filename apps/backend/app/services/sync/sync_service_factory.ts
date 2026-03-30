@@ -1,7 +1,7 @@
 import IntegrationMetadata from '#models/integration_metadata'
 import { YandexSyncServiceFacade as YandexSyncService } from '#services/yandex/index'
 import { YandexApiClient } from '#services/yandex/api_client'
-import { AmocrmSyncService } from '#services/sync/amocrm_sync_service'
+import { AmocrmSyncServiceFacade as AmocrmSyncService } from '#services/amocrm/index'
 import { AmocrmApiClient } from '#services/amocrm/amocrm_api_client'
 import type { ISyncService } from '#contracts/i_sync_service'
 import type { SyncLoggerService } from '#services/sync/sync_logger_service'
