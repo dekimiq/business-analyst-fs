@@ -81,8 +81,11 @@ export async function reloadSchedules() {
           console.log(`[INFO]: [ Node-Cron.job ] Запуск задачи ${schedule.name}`)
           try {
             switch (schedule.name) {
-              case 'sync:crm':
-                await syncQueue.add('sync:crm', { source: 'amocrm' }, jobOpts)
+              case 'sync:crm:light':
+                await syncQueue.add('sync:crm', { source: 'amocrm', mode: 'light' }, jobOpts)
+                break
+              case 'sync:crm:heavy':
+                await syncQueue.add('sync:crm', { source: 'amocrm', mode: 'heavy' }, jobOpts)
                 break
               case 'sync:ads': {
                 const metas = await db('integration_metadata')
@@ -93,15 +96,11 @@ export async function reloadSchedules() {
                 }
                 break
               }
-              case 'daily_report':
+              case 'report:daily':
                 await reportsQueue.add('daily_report', { trigger: 'cron' }, jobOpts)
                 break
-              case 'weekly_report':
+              case 'report:weekly':
                 await reportsQueue.add('weekly_report', { trigger: 'cron' }, jobOpts)
-                break
-              case 'logs:cleanup':
-                await syncQueue.add('sync:cleanup', { months: 3 }, jobOpts)
-                await BotNotifier.enqueueCleanup()
                 break
               default:
                 console.warn(

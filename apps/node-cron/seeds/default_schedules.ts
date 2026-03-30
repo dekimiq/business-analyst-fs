@@ -4,12 +4,15 @@ export async function seed(knex: Knex): Promise<void> {
   const schema = 'settings'
 
   await knex.schema.withSchema(schema).raw(`
+    -- Удаляем старые/неактуальные задачи
+    DELETE FROM settings.schedules WHERE name IN ('sync:crm', 'daily_report', 'weekly_report', 'logs:cleanup');
+
     INSERT INTO settings.schedules (name, time_hh_mm, day_of_week) VALUES
-    ('sync:crm', '*/5', NULL),
+    ('sync:crm:light', '*/30', NULL),
+    ('sync:crm:heavy', '03:20', NULL),
     ('sync:ads', '03:00', NULL),
-    ('daily_report', '09:00', NULL),
-    ('weekly_report', '10:00', 7),
-    ('logs:cleanup', '04:00', 0)
-    ON CONFLICT (name) DO NOTHING;
+    ('report:daily', '09:00', NULL),
+    ('report:weekly', '10:00', 7)
+    ON CONFLICT (name) DO UPDATE SET time_hh_mm = EXCLUDED.time_hh_mm, day_of_week = EXCLUDED.day_of_week;
   `)
 }
