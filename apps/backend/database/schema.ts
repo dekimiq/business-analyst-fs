@@ -15,6 +15,7 @@ export class AdGroupSchema extends BaseModel {
     'id',
     'name',
     'source',
+    'status',
     'updatedAt',
   ] as const
   $columns = AdGroupSchema.$columns
@@ -23,13 +24,15 @@ export class AdGroupSchema extends BaseModel {
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime | null
   @column()
-  declare groupId: bigint | number
+  declare groupId: string
   @column({ isPrimary: true })
   declare id: number
   @column()
   declare name: string
   @column()
   declare source: string
+  @column()
+  declare status: string | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
 }
@@ -44,17 +47,18 @@ export class AdSchema extends BaseModel {
     'groupPk',
     'id',
     'source',
+    'status',
     'text',
     'title',
     'updatedAt',
   ] as const
   $columns = AdSchema.$columns
   @column()
-  declare adId: bigint | number
+  declare adId: string
   @column()
   declare adPlatform: string | null
   @column()
-  declare conditionId: bigint | number | null
+  declare conditionId: string | null
   @column()
   declare conditionName: string | null
   @column.dateTime({ autoCreate: true })
@@ -65,6 +69,8 @@ export class AdSchema extends BaseModel {
   declare id: number
   @column()
   declare source: string
+  @column()
+  declare status: string | null
   @column()
   declare text: string | null
   @column()
@@ -87,7 +93,7 @@ export class CampaignSchema extends BaseModel {
   ] as const
   $columns = CampaignSchema.$columns
   @column()
-  declare campaignId: bigint | number
+  declare campaignId: string
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime | null
   @column({ isPrimary: true })
@@ -102,6 +108,25 @@ export class CampaignSchema extends BaseModel {
   declare status: string | null
   @column()
   declare type: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
+export class CrmPipelineSchema extends BaseModel {
+  static $columns = ['createdAt', 'id', 'isMain', 'name', 'sort', 'source', 'updatedAt'] as const
+  $columns = CrmPipelineSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare isMain: boolean | null
+  @column()
+  declare name: string
+  @column()
+  declare sort: number | null
+  @column()
+  declare source: string
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
 }
@@ -123,8 +148,11 @@ export class CrmRecordSchema extends BaseModel {
     'groupId',
     'groupPk',
     'id',
+    'isDeleted',
+    'pipelineId',
     'price',
     'product',
+    'rawIds',
     'recordClosedTaskAt',
     'recordCreatedAt',
     'recordCreatedByName',
@@ -135,6 +163,7 @@ export class CrmRecordSchema extends BaseModel {
     'region',
     'saleFunnel',
     'source',
+    'statusId',
     'tagDeal',
     'updatedAt',
     'website',
@@ -143,13 +172,13 @@ export class CrmRecordSchema extends BaseModel {
   @column()
   declare adId: string | null
   @column()
-  declare adPk: bigint | number | null
+  declare adPk: number | null
   @column()
   declare budget: string | null
   @column()
   declare campaignId: string | null
   @column()
-  declare campaignPk: bigint | number | null
+  declare campaignPk: number | null
   @column()
   declare city: string | null
   @column()
@@ -167,13 +196,19 @@ export class CrmRecordSchema extends BaseModel {
   @column()
   declare groupId: string | null
   @column()
-  declare groupPk: bigint | number | null
+  declare groupPk: number | null
   @column({ isPrimary: true })
   declare id: number
+  @column()
+  declare isDeleted: boolean | null
+  @column()
+  declare pipelineId: bigint | number | null
   @column()
   declare price: string | null
   @column()
   declare product: string | null
+  @column()
+  declare rawIds: string | null
   @column.dateTime()
   declare recordClosedTaskAt: DateTime | null
   @column.dateTime()
@@ -195,11 +230,46 @@ export class CrmRecordSchema extends BaseModel {
   @column()
   declare source: string | null
   @column()
+  declare statusId: bigint | number | null
+  @column()
   declare tagDeal: string | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
   @column()
   declare website: string | null
+}
+
+export class CrmStatusSchema extends BaseModel {
+  static $columns = [
+    'color',
+    'createdAt',
+    'id',
+    'name',
+    'pipelineId',
+    'sort',
+    'source',
+    'type',
+    'updatedAt',
+  ] as const
+  $columns = CrmStatusSchema.$columns
+  @column()
+  declare color: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare name: string
+  @column()
+  declare pipelineId: bigint | number
+  @column()
+  declare sort: number | null
+  @column()
+  declare source: string
+  @column()
+  declare type: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
 }
 
 export class DailyStatSchema extends BaseModel {
@@ -245,6 +315,8 @@ export class IntegrationMetadatumSchema extends BaseModel {
   static $columns = [
     'createdAt',
     'credentials',
+    'historicalSyncState',
+    'historicalSyncedUntil',
     'id',
     'lastError',
     'lastSuccessSyncDate',
@@ -253,7 +325,6 @@ export class IntegrationMetadatumSchema extends BaseModel {
     'source',
     'syncStartDate',
     'syncStatus',
-    'syncedUntil',
     'updatedAt',
   ] as const
   $columns = IntegrationMetadatumSchema.$columns
@@ -261,6 +332,10 @@ export class IntegrationMetadatumSchema extends BaseModel {
   declare createdAt: DateTime | null
   @column()
   declare credentials: string | null
+  @column()
+  declare historicalSyncState: any | null
+  @column.date()
+  declare historicalSyncedUntil: DateTime | null
   @column({ isPrimary: true })
   declare id: number
   @column()
@@ -277,8 +352,6 @@ export class IntegrationMetadatumSchema extends BaseModel {
   declare syncStartDate: DateTime | null
   @column()
   declare syncStatus: string | null
-  @column.date()
-  declare syncedUntil: DateTime | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
 }

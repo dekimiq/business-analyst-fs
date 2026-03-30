@@ -21,10 +21,14 @@ export default class extends BaseSchema {
       table.string('source').nullable().index()
       table.string('deal_stage').nullable().index()
 
+      table.bigInteger('pipeline_id').nullable().index()
+      table.bigInteger('status_id').nullable().index()
+
       table.text('deal_name').nullable()
       table.text('company_name').nullable()
       table.string('sale_funnel').nullable()
       table.decimal('budget', 15, 2).defaultTo(0)
+
       table.timestamp('record_created_at').nullable().comment('Дата создания заявки')
       table.timestamp('record_updated_at').nullable().comment('Дата обновления заявки')
       table.text('record_created_by_name').nullable().comment('Кем создана заявка')
@@ -39,6 +43,9 @@ export default class extends BaseSchema {
       table.text('product').nullable()
       table.text('referrer').nullable()
       table.text('website').nullable()
+
+      table.text('raw_ids').nullable()
+      table.boolean('is_deleted').defaultTo(false).index()
 
       table.timestamp('created_at')
       table.timestamp('updated_at')

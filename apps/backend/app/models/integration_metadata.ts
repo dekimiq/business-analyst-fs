@@ -17,6 +17,7 @@ export enum ReferenceSyncPhase {
   CAMPAIGNS = 'campaigns',
   AD_GROUPS = 'adGroups',
   ADS = 'ads',
+  CRM_PIPELINES = 'crm_pipelines',
   DONE = 'done',
 }
 

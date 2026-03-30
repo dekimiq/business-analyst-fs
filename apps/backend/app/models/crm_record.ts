@@ -19,6 +19,12 @@ export default class CrmRecord extends BaseModel {
   declare adPk: number | null
 
   @column()
+  declare rawIds: string | null
+
+  @column()
+  declare isDeleted: boolean
+
+  @column()
   declare campaignId: string | null
 
   @column()
@@ -32,6 +38,12 @@ export default class CrmRecord extends BaseModel {
 
   @column()
   declare dealStage: string | null
+
+  @column()
+  declare pipelineId: string | null
+
+  @column()
+  declare statusId: string | null
 
   @column()
   declare dealName: string | null
