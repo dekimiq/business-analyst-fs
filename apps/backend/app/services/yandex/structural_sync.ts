@@ -24,6 +24,13 @@ export async function syncTimestamp(ctx: YandexSyncContext): Promise<void> {
     logger.info(`[Sync] Получен Timestamp: ${tsValue}`)
     meta.lastTimestamp = tsValue
   } catch (error: any) {
+    if (
+      error instanceof ApiAuthError ||
+      error instanceof ApiLimitError ||
+      error instanceof ApiReportUnpossible
+    ) {
+      throw error
+    }
     logger.error(`Ошибка при получении временной метки Яндекса: ${error.message}`)
     throw new ApiFatalError('timestamp_unknown')
   }

@@ -63,7 +63,16 @@ export class YandexRetryService {
         }
 
         const status = response.status
-        const data = response.data
+        let data = response.data
+
+        // Если data - строка (например, из Reports API), попробуем распарсить её как JSON для поиска ошибки
+        if (typeof data === 'string' && data.trim().startsWith('{')) {
+          try {
+            data = JSON.parse(data)
+          } catch {
+            // Игнорируем ошибки парсинга, это может быть реальный TSV
+          }
+        }
 
         if (status === 201 || status === 202) {
           throw new ApiRetryExhaustedError(
@@ -88,7 +97,17 @@ export class YandexRetryService {
         // 3. Разбираем Axios Error (когда HTTP статус != 2xx)
         if (isAxiosError(error) && error.response) {
           const status = error.response.status
-          const data = error.response.data
+          let data = error.response.data
+
+          // Попытка парсинга строки ошибки
+          if (typeof data === 'string' && data.trim().startsWith('{')) {
+            try {
+              data = JSON.parse(data)
+            } catch {
+              /* ignore */
+            }
+          }
+
           const errorCode = data?.error?.error_code || data?.error_code
           const errorStr = data?.error?.error_string || error.message
 
