@@ -46,10 +46,6 @@ setup: build dc-up
 	-docker compose exec backend node ace.js migration:run
 	docker compose exec bot-interaction node --experimental-strip-types /app/node_modules/.bin/knex migrate:latest --knexfile knexfile.ts
 	docker compose exec node-cron node --experimental-strip-types /app/node_modules/.bin/knex migrate:latest --knexfile knexfile.ts
-	@echo "Running seeds..."
-	docker compose exec backend node ace.js db:seed
-	-docker compose exec bot-interaction node --experimental-strip-types /app/node_modules/.bin/knex seed:run --knexfile knexfile.ts
-	-docker compose exec node-cron node --experimental-strip-types /app/node_modules/.bin/knex seed:run --knexfile knexfile.ts
 	@echo "Restarting services to ensure all configs are picked up..."
 	docker compose restart backend bot-interaction node-cron ai-module
 	@echo "Setup complete!"

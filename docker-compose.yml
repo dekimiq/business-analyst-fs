@@ -42,7 +42,7 @@ services:
       redis:
         condition: service_started
     ports:
-      - "3000:3333"
+      - "127.0.0.1:3000:3333"
 
   backend-worker:
     build:
