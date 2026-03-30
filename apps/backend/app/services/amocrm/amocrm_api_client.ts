@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import { Client } from 'amocrm-js'
 import type { IAmocrmApiClient, AmoLeadPage, AmoLeadFilter } from '#contracts/i_amocrm_api_client'
 import type { AmoLead, AmoEvent, AmoPipeline } from '#types/amocrm'
@@ -46,53 +44,11 @@ export class AmocrmApiClient implements IAmocrmApiClient {
     })
   }
 
-  // ---------------------------------------------------------------------------
-  // Logging (Debug)
-  // ---------------------------------------------------------------------------
-
-  private async logApiInteraction(
-    method: string,
-    url: string,
-    params?: any,
-    responseData?: any,
-    error?: any
-  ) {
-    try {
-      const debugDir = path.join(process.cwd(), '..', '..', 'debug')
-      await fs.mkdir(debugDir, { recursive: true })
-
-      const logPath = path.join(debugDir, 'amocrm_api_debug.json')
-      const entry =
-        JSON.stringify({
-          timestamp: new Date().toISOString(),
-          method,
-          url,
-          params: params || null,
-          response: responseData || null,
-          error: error
-            ? {
-                message: error.message,
-                status: error.response?.status || error.response?.statusCode,
-                data: error.response?.data,
-              }
-            : null,
-        }) + '\n'
-
-      await fs.appendFile(logPath, entry, 'utf-8')
-    } catch (err) {
-      console.error('[AmocrmApiClient] Error writing debug log:', err)
-    }
-  }
-
   async ping(): Promise<boolean> {
     try {
-      const res = await AmocrmRetryService.call(() =>
-        this.client.request.make('GET', '/api/v4/account')
-      )
-      await this.logApiInteraction('GET', '/api/v4/account', null, res.data)
+      await AmocrmRetryService.call(() => this.client.request.make('GET', '/api/v4/account'))
       return true
     } catch (error) {
-      await this.logApiInteraction('GET', '/api/v4/account', null, null, error)
       return false
     }
   }
@@ -121,15 +77,12 @@ export class AmocrmApiClient implements IAmocrmApiClient {
         this.client.request.make('GET', '/api/v4/leads', params)
       )
       this.checkStatus(response)
-      await this.logApiInteraction('GET', '/api/v4/leads', params, response.data)
     } catch (error) {
-      await this.logApiInteraction('GET', '/api/v4/leads', params, null, error)
       throw error
     }
 
     const data = response.data as any
     const leads = data._embedded?.leads || []
-    const hasNext = !!data._links?.next
 
     const createPage = (leadsData: AmoLead[], nextData: any): AmoLeadPage => {
       const currentLeads = leadsData || []
@@ -157,9 +110,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
             nextRes = await AmocrmRetryService.call(() =>
               this.client.request.make('GET', '/api/v4/leads', nextParams)
             )
-            await this.logApiInteraction('GET', '/api/v4/leads', nextParams, nextRes.data)
           } catch (error) {
-            await this.logApiInteraction('GET', '/api/v4/leads', nextParams, null, error)
             throw error
           }
 
@@ -176,11 +127,9 @@ export class AmocrmApiClient implements IAmocrmApiClient {
       const response = await AmocrmRetryService.call(() =>
         this.client.request.make('GET', `/api/v4/leads/${id}`)
       )
-      await this.logApiInteraction('GET', `/api/v4/leads/${id}`, null, response.data)
       return (response.data as AmoLead) || null
     } catch (error: unknown) {
       const err = error as { response?: { status?: number } }
-      await this.logApiInteraction('GET', `/api/v4/leads/${id}`, null, null, error)
       if (err.response?.status === 404) {
         return null
       }
@@ -206,9 +155,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
           this.client.request.make('GET', '/api/v4/events', currentParams)
         )
         this.checkStatus(response)
-        await this.logApiInteraction('GET', '/api/v4/events', currentParams, response.data)
       } catch (error: any) {
-        await this.logApiInteraction('GET', '/api/v4/events', currentParams, null, error)
         if (error.response?.status === 204) {
           break
         }
@@ -271,9 +218,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
           this.client.request.make('GET', '/api/v4/leads', currentParams)
         )
         this.checkStatus(response)
-        await this.logApiInteraction('GET', '/api/v4/leads', currentParams, response.data)
       } catch (error: any) {
-        await this.logApiInteraction('GET', '/api/v4/leads', currentParams, null, error)
         if (error.response?.status === 204) {
           break
         }
@@ -313,13 +258,10 @@ export class AmocrmApiClient implements IAmocrmApiClient {
         const response = await AmocrmRetryService.call(() =>
           this.client.request.make('GET', '/api/v4/leads', params)
         )
-        await this.logApiInteraction('GET', '/api/v4/leads', params, response.data)
-
         const data = response.data as any
         const leads = data._embedded?.leads || []
         allLeads.push(...leads)
       } catch (error: any) {
-        await this.logApiInteraction('GET', '/api/v4/leads', params, null, error)
         if (error.response?.status === 204) {
           continue
         }
@@ -343,11 +285,9 @@ export class AmocrmApiClient implements IAmocrmApiClient {
       const response = await AmocrmRetryService.call(() =>
         this.client.request.make('GET', '/api/v4/leads/pipelines')
       )
-      await this.logApiInteraction('GET', '/api/v4/leads/pipelines', null, response.data)
       const data = response.data as any
       return data._embedded?.pipelines || []
     } catch (error) {
-      await this.logApiInteraction('GET', '/api/v4/leads/pipelines', null, null, error)
       throw error
     }
   }
