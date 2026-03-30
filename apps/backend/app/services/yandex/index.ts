@@ -58,11 +58,6 @@ export class YandexSyncServiceFacade implements ISyncService {
       `Старт цикла синхронизации. Текущий статус перед стартом: ${meta.syncStatus || 'null'}`
     )
 
-    // 2. Переводим в рабочее состояние
-    meta.syncStatus = SyncStatus.IN_PROGRESS
-    meta.lastError = null
-    await meta.save()
-
     const context: YandexSyncContext = {
       source: SOURCE,
       api: this.api,
@@ -71,14 +66,22 @@ export class YandexSyncServiceFacade implements ISyncService {
       force,
     }
 
-    try {
-      if (!meta.credentials?.long_token) {
-        throw new MetaTokenUnavailableError()
-      }
-      if (!meta.syncStartDate) {
-        throw new MetaSyncStartDateUnavailableError()
-      }
+    // 2. Валидация ПЕРЕД стартом (уходим в ожидание если данных нет)
+    if (!meta.credentials?.long_token) {
+      this.logger.warn(`[Yandex] Синхронизация отложена: отсутствует long_token.`)
+      return
+    }
+    if (!meta.syncStartDate) {
+      this.logger.warn(`[Yandex] Синхронизация отложена: не задана дата начала (syncStartDate).`)
+      return
+    }
 
+    // 3. Переводим в рабочее состояние
+    meta.syncStatus = SyncStatus.IN_PROGRESS
+    meta.lastError = null
+    await meta.save()
+
+    try {
       // 3. Структурный синк (машина состояний по фазам — запускается один раз)
       await this.runStructuralSyncPhases(context)
 

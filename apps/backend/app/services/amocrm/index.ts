@@ -52,11 +52,6 @@ export class AmocrmSyncServiceFacade implements ISyncService {
       return
     }
 
-    // 2. Устанавливаем статус работы
-    meta.syncStatus = SyncStatus.IN_PROGRESS
-    meta.lastError = null
-    await meta.save()
-
     const effectiveMode = mode || (meta.lastTimestamp ? 'light' : 'heavy')
 
     const context: AmocrmSyncContext = {
@@ -68,20 +63,28 @@ export class AmocrmSyncServiceFacade implements ISyncService {
       mode: effectiveMode,
     }
 
-    try {
-      const credentials = meta.credentials as any
-      if (!credentials?.long_token) {
-        throw new MetaTokenUnavailableError()
-      }
-      if (!meta.syncStartDate) {
-        throw new MetaSyncStartDateUnavailableError()
-      }
-      if (!credentials?.domain || !credentials?.client_id || !credentials?.client_secret) {
-        throw new Error(
-          'ОШИБКА КОНФИГУРАЦИИ: Не все параметры CRM (domain, client_id, client_secret) заполнены'
-        )
-      }
+    // 2. Валидация конфигурации ПЕРЕД стартом (уходим в ожидание если данных нет)
+    const credentials = meta.credentials as any
+    if (
+      !credentials?.long_token ||
+      !credentials?.domain ||
+      !credentials?.client_id ||
+      !credentials?.client_secret
+    ) {
+      this.logger.warn(`[AmoCRM] Синхронизация отложена: отсутствуют учетные данные (Credentials).`)
+      return
+    }
+    if (!meta.syncStartDate) {
+      this.logger.warn(`[AmoCRM] Синхронизация отложена: не задана дата начала (syncStartDate).`)
+      return
+    }
 
+    // 3. Переводим в рабочее состояние
+    meta.syncStatus = SyncStatus.IN_PROGRESS
+    meta.lastError = null
+    await meta.save()
+
+    try {
       this.logger.info(`[AmoCRM] Старт цикла синхронизации в режиме: ${effectiveMode}`)
 
       // 3. Структурная синхронизация (Воронки и Статусы)
