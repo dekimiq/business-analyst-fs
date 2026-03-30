@@ -147,3 +147,22 @@ export function makeCheckCampaignsEmpty(timestamp = '2026-03-20T12:00:00Z') {
 
 /** TSV-ответ reports API (пустой — только заголовок) */
 export const EMPTY_REPORTS_TSV = 'Date\tAdId\tImpressions\tClicks\tCost\tCtr\tAvgCpc\n'
+
+/** Генерирует TSV-строку с данными статистики */
+export function makeTsvReport(
+  rows: Array<{
+    Date: string
+    AdId: number
+    Impressions: number
+    Clicks: number
+    Cost: number
+  }>
+) {
+  let tsv = 'Date\tAdId\tImpressions\tClicks\tCost\tCtr\tAvgCpc\n'
+  for (const row of rows) {
+    const ctr = row.Impressions > 0 ? (row.Clicks / row.Impressions) * 100 : 0
+    const avgCpc = row.Clicks > 0 ? row.Cost / row.Clicks : 0
+    tsv += `${row.Date}\t${row.AdId}\t${row.Impressions}\t${row.Clicks}\t${row.Cost}\t${ctr.toFixed(2)}\t${avgCpc.toFixed(0)}\n`
+  }
+  return tsv
+}
