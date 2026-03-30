@@ -24,7 +24,7 @@ WORKDIR /app/apps/bot-interaction
 COPY --from=builder /app/apps/bot-interaction/dist ./dist/
 COPY --from=builder /app/apps/bot-interaction/knexfile.ts ./
 COPY --from=builder /app/apps/bot-interaction/migrations ./migrations/
-COPY --from=builder /app/apps/bot-interaction/seeds ./seeds/
+
 
 ENV NODE_ENV=production
 

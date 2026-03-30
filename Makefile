@@ -12,12 +12,6 @@ migrate-fresh:
 	npm run migrate:rollback --workspace=@project/bot-interaction
 	npm run migrate:rollback --workspace=@project/node-cron
 
-# Запуск наполнения базы данных начальными данными
-seed:
-	cd apps/backend && node ace db:seed
-	npm run seed --workspace=@project/bot-interaction
-	npm run seed --workspace=@project/node-cron
-
 # Генерация APP_KEY для бэкенда (AdonisJS)
 generate-key:
 	cd apps/backend && node ace generate:key

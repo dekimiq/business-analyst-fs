@@ -24,7 +24,7 @@ WORKDIR /app/apps/node-cron
 COPY --from=builder /app/apps/node-cron/dist ./dist/
 COPY --from=builder /app/apps/node-cron/knexfile.ts ./
 COPY --from=builder /app/apps/node-cron/migrations ./migrations/
-COPY --from=builder /app/apps/node-cron/seeds ./seeds/
+
 
 ENV NODE_ENV=production
 
