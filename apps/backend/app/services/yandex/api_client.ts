@@ -128,9 +128,6 @@ export class YandexApiClient implements IYandexApiClient {
       throw new Error('API запрос `adgroups`: список CampaignIds не может быть пустым.')
     }
 
-    // Яндекс: adgroups.get возвращает не более 10 000 объектов.
-    // CampaignIds в SelectionCriteria не имеет задокументированного лимита,
-    // поэтому оставляем чанк 1 000 для надёжности.
     const chunks = chunkArray(campaignIds, 1_000)
     const all: YandexAdGroup[] = []
 
@@ -159,8 +156,6 @@ export class YandexApiClient implements IYandexApiClient {
   async getAdGroupsByIds(ids: number[]): Promise<YandexAdGroup[]> {
     if (ids.length === 0) return []
 
-    // Яндекс: adgroups.get по Ids — возвращает не более 10 000 объектов/запрос.
-    // Лимит массива Ids в SelectionCriteria явно не задокументирован — берём 10 000.
     const chunks = chunkArray(ids, 10_000)
     const all: YandexAdGroup[] = []
 
@@ -224,8 +219,6 @@ export class YandexApiClient implements IYandexApiClient {
   async getAdsByIds(ids: number[]): Promise<YandexAd[]> {
     if (ids.length === 0) return []
 
-    // Яндекс: ads.get по Ids — возвращает не более 10 000 объектов/запрос.
-    // Лимит массива Ids в SelectionCriteria явно не задокументирован — берём 10 000.
     const chunks = chunkArray(ids, 10_000)
     const all: YandexAd[] = []
 
@@ -362,7 +355,6 @@ export class YandexApiClient implements IYandexApiClient {
       return { Timestamp: timestamp }
     }
 
-    // Лимит CampaignIds в changes.check = 3 000
     const chunks = chunkArray(campaignIds, 3_000)
     const accumulated: YandexCheckResult = { Timestamp: timestamp }
 
@@ -381,7 +373,6 @@ export class YandexApiClient implements IYandexApiClient {
       const result = response.data.result as YandexCheckResult
       accumulated.Timestamp = result.Timestamp
 
-      // Merge Modified
       if (result.Modified) {
         accumulated.Modified = accumulated.Modified ?? {}
         for (const [key, ids] of Object.entries(result.Modified) as [string, number[]][]) {
@@ -390,7 +381,6 @@ export class YandexApiClient implements IYandexApiClient {
         }
       }
 
-      // Merge NotFound
       if (result.NotFound) {
         accumulated.NotFound = accumulated.NotFound ?? {}
         for (const [key, ids] of Object.entries(result.NotFound) as [string, number[]][]) {
@@ -399,12 +389,10 @@ export class YandexApiClient implements IYandexApiClient {
         }
       }
 
-      // Merge CampaignsStat
       if (result.CampaignsStat) {
         accumulated.CampaignsStat = [...(accumulated.CampaignsStat ?? []), ...result.CampaignsStat]
       }
 
-      // Unprocessed — отдельная пачка, добираем рекурсивно (лимит Яндекса)
       if (result.Unprocessed?.CampaignIds && result.Unprocessed.CampaignIds.length > 0) {
         const retried = await this.check({
           timestamp: result.Timestamp,

@@ -27,7 +27,7 @@ export class YandexSyncServiceFacade implements ISyncService {
    * Главная точка входа для фонового Job'а.
    * Контролирует машину состояний: PENDING, IN_PROGRESS, SUCCESS, FAILED.
    */
-  async sync(force: boolean = false): Promise<void> {
+  async sync(force: boolean = false, _mode?: 'light' | 'heavy'): Promise<void> {
     const meta = await this.getOrCreateMeta()
 
     // 1. Сброс зависшей сессии.

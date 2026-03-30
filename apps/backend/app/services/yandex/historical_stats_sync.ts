@@ -28,7 +28,7 @@ export async function syncHistoricalStats(ctx: YandexSyncContext): Promise<void>
   }
 
   const state = meta.historicalSyncState
-  const chunkSizeDays = state?.chunkSize || 30 // По дефолту берем 30 дней, но если упадет - снизим до 14
+  const chunkSizeDays = state?.chunkSize || 30
 
   if (state && state.status === 'queued') {
     // ---------------------------------------------------------------------------------
@@ -42,7 +42,6 @@ export async function syncHistoricalStats(ctx: YandexSyncContext): Promise<void>
     const dateTo = DateTime.fromISO(state.dateTo)
 
     try {
-      // Пытаемся забрать тот же отчет (важно указывать то же reportName)
       const stats = await YandexRetryService.call(() =>
         api.getDailyStats({ dateFrom, dateTo, reportName: state.reportName })
       )
@@ -72,7 +71,6 @@ export async function syncHistoricalStats(ctx: YandexSyncContext): Promise<void>
           })
         }
 
-        // Пакетная вставка
         await db.transaction(async (trx) => {
           for (const data of payloadToInsert) {
             await DailyStat.updateOrCreate({ adPk: data.adPk, date: data.date }, data, {
@@ -82,7 +80,6 @@ export async function syncHistoricalStats(ctx: YandexSyncContext): Promise<void>
         })
       }
 
-      // Сдвигаем ползунок исторической выгрузки
       meta.historicalSyncedUntil = dateFrom
       meta.historicalSyncState = null
       await meta.save()
@@ -101,7 +98,7 @@ export async function syncHistoricalStats(ctx: YandexSyncContext): Promise<void>
         logger.warn(`Отчет оказался слишком тяжелым для Яндекса. Сбрасываем Queue и снижаем окно.`)
         meta.historicalSyncState = {
           status: 'error',
-          chunkSize: Math.floor(chunkSizeDays / 2), // Режем дни пополам (типа с 30 до 15)
+          chunkSize: Math.floor(chunkSizeDays / 2),
         }
         await meta.save()
         return
@@ -129,17 +126,11 @@ export async function syncHistoricalStats(ctx: YandexSyncContext): Promise<void>
     )
 
     try {
-      // Инициируем запрос
       const stats = await YandexRetryService.call(() =>
         api.getDailyStats({ dateFrom: startSpan, dateTo: currentStart, reportName })
       )
-
-      // Скорее всего сюда код не дойдет, так как 30 дней выбросит Timeout/202,
-      // но если дошел - значит Яндекс собрал моментально.
-      // Придется обработать сразу, чтобы не потерять:
       logger.info(`[Offline Queue] Яндекс вернул историю моментально! Сохраняем.`)
-      // Так как это редкость, можно просто сдвинуть даты и в следующем запуске он вставится
-      // Но правильнее - просто записать State "типа поставлен в очередь", и на следующем цикле он его сразу заберет (по ветви А).
+
       meta.historicalSyncState = {
         status: 'queued',
         reportName,
@@ -150,7 +141,6 @@ export async function syncHistoricalStats(ctx: YandexSyncContext): Promise<void>
       await meta.save()
     } catch (error: any) {
       if (error instanceof ApiRetryExhaustedError) {
-        // Отлично, поставлен в очередь (202)
         meta.historicalSyncState = {
           status: 'queued',
           reportName,

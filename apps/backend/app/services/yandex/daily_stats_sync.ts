@@ -20,7 +20,6 @@ export async function syncDailyStats(ctx: YandexSyncContext): Promise<void> {
   const yesterday = DateTime.now().toUTC().minus({ days: 1 }).startOf('day')
   const dateTo = yesterday
 
-  // Определяем dateFrom по приоритету
   const statBorderDate: string | undefined = (meta.historicalSyncState as any)?.statBorderDate
   let dateFrom: DateTime
 
@@ -34,12 +33,10 @@ export async function syncDailyStats(ctx: YandexSyncContext): Promise<void> {
     logger.info(`[DailyStats] Стандартный хвост: ${dateFrom.toISODate()} → ${dateTo.toISODate()}`)
   }
 
-  // Дата не может быть позже вчерашнего
   if (dateFrom > dateTo) {
     dateFrom = dateTo
   }
 
-  // HTTP запрос — вне транзакции (Fixes DB Lock Starvation)
   const stats = await api.getDailyStats({ dateFrom, dateTo })
   logger.info(`[DailyStats] Получено ${stats.length} строк из Яндекса.`)
 
@@ -47,7 +44,6 @@ export async function syncDailyStats(ctx: YandexSyncContext): Promise<void> {
     await persistStats(ctx, stats)
   }
 
-  // Сбрасываем statBorderDate — данные скачаны
   if (statBorderDate) {
     const state = (meta.historicalSyncState as any) ?? {}
     delete state.statBorderDate
@@ -71,7 +67,6 @@ async function persistStats(
 ): Promise<void> {
   const { source, logger } = ctx
 
-  // Один SELECT для всех AdId — без N+1
   const yandexAdIds = Array.from(new Set(stats.map((s) => String(s.AdId))))
   const adRecords = await Ad.query().whereIn('adId', yandexAdIds).where('source', source)
   const adIdMap = new Map(adRecords.map((a) => [String(a.adId), a.id]))
@@ -99,7 +94,6 @@ async function persistStats(
     return
   }
 
-  // Одна транзакция для всего пакета
   await db.transaction(async (trx) => {
     for (const data of payload) {
       await DailyStat.updateOrCreate({ adPk: data.adPk, date: data.date }, data, {

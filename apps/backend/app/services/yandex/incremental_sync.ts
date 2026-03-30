@@ -47,7 +47,6 @@ export async function syncIncremental(ctx: YandexSyncContext): Promise<void> {
 
   logger.info(`[Incremental] Проверяем изменения с Timestamp: ${meta.lastTimestamp}`)
 
-  // Step 1: checkCampaigns
   const checkResult = await api.checkCampaigns(meta.lastTimestamp)
   const newTimestamp = checkResult.Timestamp
 
@@ -154,22 +153,18 @@ async function processChildrenChanges(
       `Не найдено групп: ${notFoundGroupIds.length}, объявлений: ${notFoundAdIds.length}.`
   )
 
-  // Обновляем изменённые группы
   if (modifiedGroupIds.length > 0) {
     await updateAdGroups(ctx, modifiedGroupIds)
   }
 
-  // Деактивируем удалённые группы
   if (notFoundGroupIds.length > 0) {
     await deactivateAdGroups(source, notFoundGroupIds, logger)
   }
 
-  // Обновляем изменённые объявления
   if (modifiedAdIds.length > 0) {
     await updateAds(ctx, modifiedAdIds)
   }
 
-  // Деактивируем удалённые объявления
   if (notFoundAdIds.length > 0) {
     await deactivateAds(source, notFoundAdIds, logger)
   }
@@ -181,14 +176,12 @@ async function updateAdGroups(ctx: YandexSyncContext, groupIds: number[]): Promi
   const groups = await api.getAdGroupsByIds(groupIds)
   if (groups.length === 0) return
 
-  // Загружаем parent mapping (campaign_id -> pk) одним запросом — без N+1
   const campaignApiIds = Array.from(new Set(groups.map((g) => String(g.CampaignId))))
   const campaignRecords = await Campaign.query()
     .whereIn('campaignId', campaignApiIds)
     .where('source', source)
   const campaignIdMap = new Map(campaignRecords.map((c) => [String(c.campaignId), c.id]))
 
-  // Пакетная вставка
   const chunks = splitIntoChunks(groups, BATCH_SIZE)
   for (const chunk of chunks) {
     await db.transaction(async (trx) => {
@@ -214,7 +207,6 @@ async function updateAds(ctx: YandexSyncContext, adIds: number[]): Promise<void>
   const ads = await api.getAdsByIds(adIds)
   if (ads.length === 0) return
 
-  // Загружаем parent mapping (group_id -> pk) одним запросом — без N+1
   const groupApiIds = Array.from(new Set(ads.map((a) => String(a.AdGroupId))))
   const groupRecords = await AdGroup.query().whereIn('groupId', groupApiIds).where('source', source)
   const groupIdMap = new Map(groupRecords.map((g) => [String(g.groupId), g.id]))
@@ -262,7 +254,7 @@ async function processStatChanges(
   const borderDates = (checkResult.CampaignsStat ?? [])
     .map((s) => s.BorderDate)
     .filter((d): d is string => !!d)
-    .sort() // ISO format сортируется лексикографически корректно
+    .sort()
 
   if (borderDates.length === 0) {
     logger.info('[Incremental/STAT] BorderDate не получен — статистика актуальна.')
@@ -274,7 +266,6 @@ async function processStatChanges(
     `[Incremental/STAT] Минимальный BorderDate: ${minBorderDate}. Статистику нужно перекачать.`
   )
 
-  // Сохраняем в meta чтобы syncDailyStats знал с какой даты брать данные
   ctx.meta.historicalSyncState = {
     ...(ctx.meta.historicalSyncState ?? {}),
     statBorderDate: minBorderDate,
