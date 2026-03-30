@@ -44,6 +44,7 @@ router
     router.post('/notifications/test', [SystemController, 'testNotification'])
     router.post('/sync-start-date', [SystemController, 'setSyncStartDate'])
     router.post('/force-sync/:source', [SystemController, 'forceSync'])
+    router.post('/cron-sync', [SystemController, 'cronSync'])
   })
   .prefix('/system')
 

@@ -17,16 +17,15 @@ export class SyncProducerService {
     return SyncProducerService.instance
   }
 
-  /**
-   * Добавляет задачу на синхронизацию в очередь.
-   *
-   * @param source - Источник ('yandex', 'amocrm')
-   * @param force - Принудительный запуск (игнорирует статус ERROR)
-   */
-  public async enqueueSync(source: string, force: boolean = false): Promise<void> {
+  public async enqueueSync(
+    source: string,
+    force: boolean = false,
+    mode?: 'light' | 'heavy'
+  ): Promise<void> {
     await SyncJob.dispatch({
       source,
       force,
+      mode,
     })
   }
 

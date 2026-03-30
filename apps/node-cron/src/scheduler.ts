@@ -82,17 +82,29 @@ export async function reloadSchedules() {
           try {
             switch (schedule.name) {
               case 'sync:crm:light':
-                await syncQueue.add('sync:crm', { source: 'amocrm', mode: 'light' }, jobOpts)
+                await fetch('http://backend:3333/system/cron-sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ source: 'amocrm', mode: 'light' }),
+                })
                 break
               case 'sync:crm:heavy':
-                await syncQueue.add('sync:crm', { source: 'amocrm', mode: 'heavy' }, jobOpts)
+                await fetch('http://backend:3333/system/cron-sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ source: 'amocrm', mode: 'heavy' }),
+                })
                 break
               case 'sync:ads': {
                 const metas = await db('integration_metadata')
                   .select('source')
                   .whereNot('source', 'amocrm')
                 for (const meta of metas) {
-                  await syncQueue.add(`sync:${meta.source}`, { source: meta.source }, jobOpts)
+                  await fetch('http://backend:3333/system/cron-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source: meta.source }),
+                  })
                 }
                 break
               }
