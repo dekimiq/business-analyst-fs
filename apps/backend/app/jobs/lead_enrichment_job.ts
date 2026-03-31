@@ -19,7 +19,9 @@ export default class LeadEnrichmentJob extends Job {
 
     // 1. Извлекаем пачку записей для обработки
     const recordsToProcess = await CrmRecord.query()
-      .whereNull('campaignPk') // Используем имя свойства модели
+      .andWhere((query) => {
+        query.whereNull('campaignPk').orWhereNull('groupPk').orWhereNull('adPk')
+      })
       .andWhere('matchRetryCount', '<', 150)
       .andWhere((query) => {
         query
