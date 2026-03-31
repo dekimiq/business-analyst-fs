@@ -28,8 +28,9 @@ export default class SystemController {
   /**
    * Принудительный запуск синхронизации (через очередь BullMQ)
    */
-  public async forceSync({ params, response }: HttpContext) {
+  public async forceSync({ params, request, response }: HttpContext) {
     const { source } = params
+    const mode = request.input('mode') // Получаем 'light' или 'heavy' из query string
 
     const integration = await IntegrationMetadata.findBy('source', source)
     if (!integration) {
@@ -37,10 +38,11 @@ export default class SystemController {
     }
 
     const { SyncProducerService } = await import('#services/sync_producer_service')
-    await SyncProducerService.getInstance().enqueueSync(source, true)
+    // Передаем true (force) и выбранный режим
+    await SyncProducerService.getInstance().enqueueSync(source, true, mode as any)
 
     return response.ok(
-      ApiResponse.ok(`Синхронизация для ${source} поставлена в очередь (force mode)`)
+      ApiResponse.ok(`Синхронизация для ${source} (${mode || 'default'}) запущена вручную`)
     )
   }
 
