@@ -87,12 +87,18 @@ export async function syncAdGroups(ctx: YandexSyncContext): Promise<void> {
   const { api, logger, source } = ctx
 
   const campaignRecords = await Campaign.query().where('source', source)
-  const campaignIds = campaignRecords.map((c) => Number(c.campaignId))
+  const campaignIds = campaignRecords
+    .map((c) => Number(c.campaignId))
+    .filter((id) => !isNaN(id) && id > 0)
 
   if (campaignIds.length === 0) {
+    logger.warn(
+      `[Sync] Нет валидных ID кампаний для синхронизации групп (records: ${campaignRecords.length})`
+    )
     throw new ApiFatalError('yandex_no_campaigns_in_db')
   }
 
+  logger.info(`[Sync] Запрос групп объявлений для ${campaignIds.length} кампаний...`)
   let adGroups
   try {
     adGroups = await YandexRetryService.call(() => api.getAdGroups(campaignIds))
@@ -138,12 +144,18 @@ export async function syncAds(ctx: YandexSyncContext): Promise<void> {
   const { api, logger, source } = ctx
 
   const adGroupRecords = await AdGroup.query().where('source', source)
-  const adGroupIds = adGroupRecords.map((g) => Number(g.groupId))
+  const adGroupIds = adGroupRecords
+    .map((g) => Number(g.groupId))
+    .filter((id) => !isNaN(id) && id > 0)
 
   if (adGroupIds.length === 0) {
+    logger.warn(
+      `[Sync] Нет валидных ID групп для синхронизации объявлений (records: ${adGroupRecords.length})`
+    )
     throw new ApiFatalError('yandex_no_adgroups_in_db')
   }
 
+  logger.info(`[Sync] Запрос объявлений для ${adGroupIds.length} групп...`)
   let ads
   try {
     ads = await YandexRetryService.call(() => api.getAds(adGroupIds))

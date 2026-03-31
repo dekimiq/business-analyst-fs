@@ -128,7 +128,9 @@ export class YandexApiClient implements IYandexApiClient {
       throw new Error('API запрос `adgroups`: список CampaignIds не может быть пустым.')
     }
 
-    const chunks = chunkArray(campaignIds, 1_000)
+    // Лимит для CampaignIds в SelectionCriteria часто составляет 10 элементов
+    const uniqueIds = Array.from(new Set(campaignIds))
+    const chunks = chunkArray(uniqueIds, 10)
     const all: YandexAdGroup[] = []
 
     for (const chunk of chunks) {
@@ -156,7 +158,8 @@ export class YandexApiClient implements IYandexApiClient {
   async getAdGroupsByIds(ids: number[]): Promise<YandexAdGroup[]> {
     if (ids.length === 0) return []
 
-    const chunks = chunkArray(ids, 10_000)
+    const uniqueIds = Array.from(new Set(ids))
+    const chunks = chunkArray(uniqueIds, 10_000)
     const all: YandexAdGroup[] = []
 
     for (const chunk of chunks) {
@@ -190,7 +193,9 @@ export class YandexApiClient implements IYandexApiClient {
       throw new Error('API запрос `ads`: список AdGroupIds не может быть пустым.')
     }
 
-    const chunks = chunkArray(adGroupIds, 1_000)
+    // Лимит для AdGroupIds в SelectionCriteria может быть ограничен 1000, но для надежности ставим 100 или 10
+    const uniqueIds = Array.from(new Set(adGroupIds))
+    const chunks = chunkArray(uniqueIds, 10)
     const all: YandexAd[] = []
 
     for (const chunk of chunks) {
