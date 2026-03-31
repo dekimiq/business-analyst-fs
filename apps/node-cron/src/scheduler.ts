@@ -96,16 +96,11 @@ export async function reloadSchedules() {
                 })
                 break
               case 'sync:ads': {
-                const metas = await db('integration_metadata')
-                  .select('source')
-                  .whereNot('source', 'amocrm')
-                for (const meta of metas) {
-                  await fetch('http://backend:3333/system/cron-sync', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ source: meta.source }),
-                  })
-                }
+                await fetch('http://backend:3333/system/cron-sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ source: 'ads' }),
+                })
                 break
               }
               case 'report:daily':
