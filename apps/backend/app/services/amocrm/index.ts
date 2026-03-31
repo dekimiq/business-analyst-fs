@@ -63,28 +63,26 @@ export class AmocrmSyncServiceFacade implements ISyncService {
       mode: effectiveMode,
     }
 
-    // 2. Валидация конфигурации ПЕРЕД стартом (уходим в ожидание если данных нет)
-    const credentials = meta.credentials as any
-    if (
-      !credentials?.long_token ||
-      !credentials?.domain ||
-      !credentials?.client_id ||
-      !credentials?.client_secret
-    ) {
-      this.logger.warn(`[AmoCRM] Синхронизация отложена: отсутствуют учетные данные (Credentials).`)
-      return
-    }
-    if (!meta.syncStartDate) {
-      this.logger.warn(`[AmoCRM] Синхронизация отложена: не задана дата начала (syncStartDate).`)
-      return
-    }
-
-    // 3. Переводим в рабочее состояние
-    meta.syncStatus = SyncStatus.IN_PROGRESS
-    meta.lastError = null
-    await meta.save()
-
     try {
+      // 2. Валидация конфигурации ПЕРЕД стартом (уходим в ожидание если данных нет)
+      const credentials = meta.credentials as any
+      if (
+        !credentials?.long_token ||
+        !credentials?.domain ||
+        !credentials?.client_id ||
+        !credentials?.client_secret
+      ) {
+        throw new MetaTokenUnavailableError()
+      }
+      if (!meta.syncStartDate) {
+        throw new MetaSyncStartDateUnavailableError()
+      }
+
+      // 3. Переводим в рабочее состояние
+      meta.syncStatus = SyncStatus.IN_PROGRESS
+      meta.lastError = null
+      await meta.save()
+
       this.logger.info(`[AmoCRM] Старт цикла синхронизации в режиме: ${effectiveMode}`)
 
       // 3. Структурная синхронизация (Воронки и Статусы)
@@ -112,6 +110,15 @@ export class AmocrmSyncServiceFacade implements ISyncService {
       await meta.save()
 
       this.logger.info(`[AmoCRM] Цикл синхронизации (${effectiveMode}) успешно завершен.`)
+
+      // 6. Запуск пайплайна обогащения
+      try {
+        const EnrichmentJob = (await import('#jobs/lead_enrichment_job')).default
+        await EnrichmentJob.dispatch({})
+        this.logger.info(`[AmoCRM] Пайплайн обогащения сделок передан в очередь.`)
+      } catch (err) {
+        this.logger.error(`[AmoCRM] Ошибка запуска пайплайна обогащения: ${(err as Error).message}`)
+      }
     } catch (error) {
       await this.handleError(context, error)
       throw error

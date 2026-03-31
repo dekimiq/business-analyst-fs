@@ -22,6 +22,22 @@ export class SyncProducerService {
     force: boolean = false,
     mode?: 'light' | 'heavy'
   ): Promise<void> {
+    if (source === 'ads') {
+      const { default: IntegrationMetadata } = await import('#models/integration_metadata')
+      const sources = await IntegrationMetadata.query()
+        .whereNot('source', 'amocrm')
+        .select('source')
+
+      for (const meta of sources) {
+        await SyncJob.dispatch({
+          source: meta.source,
+          force,
+          mode,
+        })
+      }
+      return
+    }
+
     await SyncJob.dispatch({
       source,
       force,

@@ -22,6 +22,12 @@ export default class CrmRecord extends BaseModel {
   declare rawIds: string | null
 
   @column()
+  declare matchRetryCount: number
+
+  @column.dateTime()
+  declare nextMatchRetryAt: DateTime | null
+
+  @column()
   declare isDeleted: boolean
 
   @column()

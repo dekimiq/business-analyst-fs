@@ -50,6 +50,7 @@ export class AmocrmRetryService {
           }
           message?: string
           name?: string
+          code?: string
         }
 
         const status = err.response?.status
@@ -84,17 +85,28 @@ export class AmocrmRetryService {
         }
 
         const retryableStatuses = [500, 502, 503, 504]
-        if (status && retryableStatuses.includes(status)) {
+        const isNetworkError =
+          !status &&
+          (err.code === 'ECONNRESET' ||
+            err.code === 'ETIMEDOUT' ||
+            err.code === 'EPIPE' ||
+            err.message?.toLowerCase().includes('socket hang up'))
+
+        if ((status && retryableStatuses.includes(status)) || isNetworkError) {
           if (attempt < maxAttempts) {
             const waitMs =
               amocrmRetryConfig.retryDelaysMs[attempt] || amocrmRetryConfig.universalDelayMs
+            console.log(
+              `[AmocrmRetry] Попытка ${attempt + 1} из-за ${status || (isNetworkError ? 'NetworkError (' + err.code + ')' : 'unknown')}. Ожидание ${waitMs}мс...`
+            )
             await this.delay(waitMs)
             attempt++
             continue
           } else {
-            throw new ApiRetryExhaustedError(
-              `AmoCRM API недоступен (${status}) после ${maxAttempts} попыток`
-            )
+            const errorLabel = isNetworkError
+              ? `Разрыв сетевого соединения (${err.code})`
+              : `AmoCRM API недоступен (${status})`
+            throw new ApiRetryExhaustedError(`${errorLabel} после ${maxAttempts} попыток`)
           }
         }
         if (

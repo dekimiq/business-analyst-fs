@@ -66,22 +66,20 @@ export class YandexSyncServiceFacade implements ISyncService {
       force,
     }
 
-    // 2. Валидация ПЕРЕД стартом (уходим в ожидание если данных нет)
-    if (!meta.credentials?.long_token) {
-      this.logger.warn(`[Yandex] Синхронизация отложена: отсутствует long_token.`)
-      return
-    }
-    if (!meta.syncStartDate) {
-      this.logger.warn(`[Yandex] Синхронизация отложена: не задана дата начала (syncStartDate).`)
-      return
-    }
-
-    // 3. Переводим в рабочее состояние
-    meta.syncStatus = SyncStatus.IN_PROGRESS
-    meta.lastError = null
-    await meta.save()
-
     try {
+      // 2. Валидация ПЕРЕД стартом (уходим в ожидание если данных нет)
+      if (!meta.credentials?.long_token) {
+        throw new MetaTokenUnavailableError()
+      }
+      if (!meta.syncStartDate) {
+        throw new MetaSyncStartDateUnavailableError()
+      }
+
+      // 3. Переводим в рабочее состояние
+      meta.syncStatus = SyncStatus.IN_PROGRESS
+      meta.lastError = null
+      await meta.save()
+
       // 3. Структурный синк (машина состояний по фазам — запускается один раз)
       await this.runStructuralSyncPhases(context)
 

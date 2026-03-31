@@ -149,6 +149,8 @@ export class CrmRecordSchema extends BaseModel {
     'groupPk',
     'id',
     'isDeleted',
+    'matchRetryCount',
+    'nextMatchRetryAt',
     'pipelineId',
     'price',
     'product',
@@ -201,6 +203,10 @@ export class CrmRecordSchema extends BaseModel {
   declare id: number
   @column()
   declare isDeleted: boolean | null
+  @column()
+  declare matchRetryCount: number
+  @column.dateTime()
+  declare nextMatchRetryAt: DateTime | null
   @column()
   declare pipelineId: bigint | number | null
   @column()

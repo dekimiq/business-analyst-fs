@@ -141,10 +141,20 @@ export class YandexRetryService {
           throw error
         }
 
+        const isNetworkError =
+          (error.code === 'ECONNRESET' ||
+            error.code === 'ETIMEDOUT' ||
+            error.code === 'EPIPE' ||
+            error.message?.toLowerCase().includes('socket hang up')) &&
+          !error.response
+
         // 5. Ретрай (Повторимые ошибки или нестандартные таймауты сети)
         if (attempt < MAX_ATTEMPTS) {
+          const errorLabel = isNetworkError
+            ? `NetworkError (${error.code || 'socket hang up'})`
+            : error.message || 'Unknown error'
           console.log(
-            `[YandexRetry] Попытка ${attempt} провалилась: ${error.message}. Универсальное ожидание ${RETRY_DELAY_MS}мс...`
+            `[YandexRetry] Попытка ${attempt} провалилась: ${errorLabel}. Универсальное ожидание ${RETRY_DELAY_MS}мс...`
           )
           await this.delay(RETRY_DELAY_MS)
           attempt++
