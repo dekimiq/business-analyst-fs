@@ -90,6 +90,7 @@ export class AmocrmRetryService {
           (err.code === 'ECONNRESET' ||
             err.code === 'ETIMEDOUT' ||
             err.code === 'EPIPE' ||
+            err.code === 'EAI_AGAIN' ||
             err.message?.toLowerCase().includes('socket hang up'))
 
         if ((status && retryableStatuses.includes(status)) || isNetworkError) {

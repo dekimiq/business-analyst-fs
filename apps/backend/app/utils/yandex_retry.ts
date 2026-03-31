@@ -145,6 +145,7 @@ export class YandexRetryService {
           (error.code === 'ECONNRESET' ||
             error.code === 'ETIMEDOUT' ||
             error.code === 'EPIPE' ||
+            error.code === 'EAI_AGAIN' ||
             error.message?.toLowerCase().includes('socket hang up')) &&
           !error.response
 
