@@ -62,6 +62,7 @@ test.group('YandexSyncService: Возобновляемость структур
   group.each.setup(async () => {
     nock.cleanAll()
     nock.disableNetConnect()
+    nock.enableNetConnect(/127\.0\.0\.1|localhost|0\.0\.0\.0/)
     await cleanDatabase()
   })
 
@@ -497,7 +498,7 @@ test.group('YandexSyncService: Возобновляемость структур
 
     // Структурные эндпоинты НЕ должны вызываться
     // Если они вызовутся — nock.pendingMocks() в teardown не поймает,
-    // но nock.disableNetConnect() отклонит реальный запрос с ошибкой → тест упадёт
+    // но nock.disableNetConnect(); nock.enableNetConnect(/127\.0\.0\.1|localhost|0\.0\.0\.0/) отклонит реальный запрос с ошибкой → тест упадёт
 
     // Только incremental + reports
     nockChangesEmpty(nock, 'ts-new')

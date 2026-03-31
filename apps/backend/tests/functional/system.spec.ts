@@ -9,13 +9,17 @@ async function cleanDatabase() {
   await db.rawQuery('TRUNCATE TABLE backend.integration_metadata RESTART IDENTITY CASCADE')
 }
 
+import nock from 'nock'
+
 test.group('System Actions (Functional)', (group) => {
   group.each.setup(async () => {
+    nock.cleanAll()
+    nock.enableNetConnect(/127\.0\.0\.1|localhost|0\.0\.0\.0/)
     await cleanDatabase()
     await IntegrationMetadata.createMany([{ source: 'yandex' }, { source: 'amocrm' }])
   })
 
-  test('POST /system/sync-start-date - успех с валидной датой (не обновляет AmoCRM)', async ({
+  test('POST /system/sync-start-date - успех с валидной датой (обновляет все источники)', async ({
     client,
     assert,
   }) => {
@@ -34,7 +38,7 @@ test.group('System Actions (Functional)', (group) => {
     assert.equal(yandex.syncStartDate?.toISODate(), twoYearsAgo)
 
     const amocrm = await IntegrationMetadata.findByOrFail('source', 'amocrm')
-    assert.isNull(amocrm.syncStartDate)
+    assert.equal(amocrm.syncStartDate?.toISODate(), twoYearsAgo)
   })
 
   test('POST /system/sync-start-date - ошибка если дата на сегодня или в будущем', async ({
@@ -76,6 +80,25 @@ test.group('System Actions (Functional)', (group) => {
     response.assertBodyContains({
       status: 'ok',
       message: 'Тестовое уведомление поставлено в очередь',
+    })
+  })
+
+  test('POST /system/sync-start-date - ошибка 400, если дата уже установлена (включая amocrm)', async ({
+    client,
+  }) => {
+    // amocrm уже имеет дату
+    const amocrm = await IntegrationMetadata.findByOrFail('source', 'amocrm')
+    amocrm.syncStartDate = DateTime.fromISO('2024-01-01')
+    await amocrm.save()
+
+    const response = await client.post('/system/sync-start-date').json({
+      sync_start_date: '2025-01-01',
+    })
+
+    response.assertStatus(400)
+    response.assertBodyContains({
+      status: 'error',
+      message: 'Дата начала синхронизации уже установлена для amocrm',
     })
   })
 })

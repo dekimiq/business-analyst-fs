@@ -24,6 +24,7 @@ test.group('YandexSyncService: Ошибки и лимиты (Группа 5)', (
   group.each.setup(async () => {
     nock.cleanAll()
     nock.disableNetConnect()
+    nock.enableNetConnect(/127\.0\.0\.1|localhost|0\.0\.0\.0/)
     await cleanDatabase()
   })
 

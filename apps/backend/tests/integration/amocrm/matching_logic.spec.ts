@@ -33,6 +33,7 @@ test.group('AmoCRM Logic: Сопоставление и Fallback', (group) => {
   group.each.setup(async () => {
     nock.cleanAll()
     nock.disableNetConnect()
+    nock.enableNetConnect(/127\.0\.0\.1|localhost|0\.0\.0\.0/)
     await cleanDatabase()
   })
 

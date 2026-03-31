@@ -13,6 +13,7 @@ test.group('Global Actions (Functional)', (group) => {
   group.each.setup(async () => {
     nock.cleanAll()
     nock.disableNetConnect()
+    nock.enableNetConnect(/127\.0\.0\.1|localhost|0\.0\.0\.0/)
     nock.enableNetConnect(/(127.0.0.1|0.0.0.0|localhost)/)
     await cleanDatabase()
   })
