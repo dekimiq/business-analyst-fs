@@ -14,6 +14,7 @@ import swagger from '#config/swagger'
 const AmocrmController = () => import('#controllers/amocrm/amocrm_controller')
 const GlobalController = () => import('#controllers/global/global_controller')
 const SystemController = () => import('#controllers/system/system_controller')
+const AnalyticsReportController = () => import('#controllers/analytics/report_controller')
 
 // ---------------------------------------------------------------------------
 // Swagger UI
@@ -48,4 +49,11 @@ router
   })
   .prefix('/system')
 
-// @TODO: Добавить группу Analytics после обсуждения ТЗ
+// ---------------------------------------------------------------------------
+// Analytics group (Для ИИ Агента)
+// ---------------------------------------------------------------------------
+router
+  .group(() => {
+    router.get('/weekly-romi', [AnalyticsReportController, 'getWeeklyRomi'])
+  })
+  .prefix('/analytics')
