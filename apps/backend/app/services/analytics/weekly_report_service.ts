@@ -66,7 +66,13 @@ export class WeeklyReportService {
         .where('source', 'yandex')
         .whereIn('status_id', paidStatusIds)
         .whereBetween('record_created_at', [start.toUTC().toISO()!, end.toUTC().toISO()!])
-        .select(db.raw('COUNT(*) as total_payments'), db.raw('SUM(price) as total_sales'))
+        // TODO: убрать временную заглушку на budget
+        .select(
+          db.raw('COUNT(*) as total_payments'),
+          db.raw(
+            'SUM(CASE WHEN budget IS NULL OR budget = 0 THEN 40000 ELSE budget END) as total_sales'
+          )
+        )
         .first()
 
       paymentsCount = Number(salesResult?.total_payments || 0)
