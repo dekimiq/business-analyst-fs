@@ -21,6 +21,7 @@ RUN npm install --omit=dev --ignore-scripts && npm cache clean --force
 
 COPY --from=builder /app/apps/ai-module/dist ./apps/ai-module/dist/
 COPY --from=builder /app/apps/ai-module/instructions ./apps/ai-module/instructions/
+COPY --from=builder /app/apps/ai-module/src/prompts ./apps/ai-module/dist/prompts/
 
 ENV NODE_ENV=production
 
