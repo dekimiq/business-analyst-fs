@@ -42,6 +42,12 @@ const schema = z.object({
   APP_KEY: z.string().optional(),
   APP_URL: z.string().default('http://localhost:3333'),
   SESSION_DRIVER: z.enum(['cookie', 'memory', 'database']).default('memory'),
+
+  // AI Configuration
+  BASE_URL_AI: z.string().default('https://openrouter.ai/api/v1'),
+  MODEL_NAME_AI: z.string().default('google/gemini-2.0-flash-001'),
+  TOKEN_AI: z.string().optional(),
+  AI_MODULE_URL: z.string().default('http://localhost:3334'),
 })
 
 const parsed = schema.safeParse(process.env)

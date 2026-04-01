@@ -89,6 +89,8 @@ services:
         condition: service_healthy
       backend:
         condition: service_started
+    ports:
+      - "127.0.0.1:3334:3334"
 
   node-cron:
     build:
