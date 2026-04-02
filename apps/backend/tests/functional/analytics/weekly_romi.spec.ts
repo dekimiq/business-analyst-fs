@@ -87,9 +87,10 @@ test.group('Analytics | Недельный Romi отчет', (group) => {
     await CrmRecord.create({
       dealId: '1001',
       campaignPk: campaign.id,
+      adPk: ad.id,
       source: 'yandex',
       statusId: paidStatus.id,
-      price: 150000,
+      budget: 150000,
       recordCreatedAt: DateTime.fromISO('2026-03-24T10:00:00', { zone: 'Europe/Moscow' }).toUTC(),
     })
 
@@ -97,9 +98,10 @@ test.group('Analytics | Недельный Romi отчет', (group) => {
     await CrmRecord.create({
       dealId: '1002',
       campaignPk: campaign.id,
+      adPk: ad.id,
       source: 'yandex',
       statusId: leadStatus.id,
-      price: 0,
+      budget: 0,
       recordCreatedAt: DateTime.fromISO('2026-03-26T15:00:00', { zone: 'Europe/Moscow' }).toUTC(),
     })
 
@@ -107,9 +109,10 @@ test.group('Analytics | Недельный Romi отчет', (group) => {
     await CrmRecord.create({
       dealId: '1003',
       campaignPk: campaign.id,
+      adPk: ad.id,
       source: 'yandex',
       statusId: paidStatus.id,
-      price: 200000,
+      budget: 200000,
       recordCreatedAt: DateTime.fromISO('2026-03-31T10:00:00', { zone: 'Europe/Moscow' }).toUTC(),
     })
 
