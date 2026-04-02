@@ -49,7 +49,10 @@ export class ReportService {
       const aiReport = await LlmService.getInstance().analyze(instruction, finalMarkdown)
       return aiReport
     } catch (error: any) {
-      console.error(`[ReportService] Ошибка при генерации еженедельного отчета: ${error.message}`)
+      const url = `${env.BACKEND_API_URL}/analytics/weekly-romi`
+      console.error(
+        `[ReportService] Ошибка при генерации еженедельного отчета (URL: ${url}): ${error.message}`,
+      )
       throw new Error(`Не удалось получить данные отчета: ${error.message}`)
     }
   }

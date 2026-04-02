@@ -1,3 +1,4 @@
+import { DateTime } from 'luxon'
 import { AmocrmRetryService } from '#utils/amocrm_retry'
 import type { AmocrmSyncContext } from './amocrm_sync_context.js'
 import { saveLeadsToDb } from './save_leads.js'
@@ -8,9 +9,17 @@ import CrmRecord from '#models/crm_record'
  */
 export async function incrementalSync(ctx: AmocrmSyncContext): Promise<void> {
   const { meta, api, logger, source } = ctx
-  const lastTs = Number(meta.lastTimestamp) || 0
+  // Превращаем syncStartDate в TimeStamp для безопасного старта,
+  // если синхронизация запускается впервые. Иначе потащит события с 1970-го года.
+  const hardLimitTs = meta.syncStartDate
+    ? Math.floor(meta.syncStartDate.toSeconds())
+    : Math.floor(DateTime.now().minus({ days: 3 }).toSeconds())
 
-  logger.info(`[AmoCRM] Запуск инкрементальной синхронизации (от ${lastTs})...`)
+  const lastTs = Number(meta.lastTimestamp) || hardLimitTs
+
+  logger.info(
+    `[AmoCRM] Запуск инкрементальной синхронизации (от ${DateTime.fromSeconds(lastTs).toISODate()})...`
+  )
 
   let processedEventsCount = 0
 

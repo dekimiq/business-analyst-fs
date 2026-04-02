@@ -5,19 +5,25 @@ import { ApiRetryExhaustedError, ApiFatalError } from '#exceptions/api_exception
 
 /**
  * Адаптивная историческая синхронизация (Yandex-style).
- * Опрашивает сделки кусками, умеет сжимать окно при ошибках (Timeout/Too Large).
+ * Идет ОБРАТНО во времени: от текущего момента (или точки остановки) до syncStartDate.
  */
 export async function historicalSync(ctx: AmocrmSyncContext): Promise<void> {
   const { meta, api, logger } = ctx
 
-  const hardLimit = meta.syncStartDate || DateTime.now().minus({ months: 1 })
-  const syncEndDate = DateTime.now()
+  const hardLimit = meta.syncStartDate // Мы не должны заходить раньше этой даты
+  if (!hardLimit) {
+    logger.error(`[AmoCRM] [Historical] syncStartDate не задана. Синхронизация невозможна.`)
+    return
+  }
 
-  let currentStart = meta.historicalSyncedUntil || hardLimit
+  // Точка, ОТ которой мы идем назад.
+  // Если еще не начинали - стартуем от "сегодня".
+  let currentEnd = meta.historicalSyncedUntil || DateTime.now()
 
-  if (currentStart >= syncEndDate) {
+  // Если мы уже дошли до лимита или перешагнули его - выходим.
+  if (currentEnd <= hardLimit) {
     logger.info(
-      `[AmoCRM] [Historical] Синхронизация уже заверешена (достигнуто ${syncEndDate.toISODate()})`
+      `[AmoCRM] [Historical] Историческая синхронизация уже завершена (достигнут лимит ${hardLimit.toISODate()})`
     )
     return
   }
@@ -25,35 +31,42 @@ export async function historicalSync(ctx: AmocrmSyncContext): Promise<void> {
   const state = meta.historicalSyncState || {}
   const chunkSizeDays = state.chunkSize || 30
 
-  let currentEnd = currentStart.plus({ days: chunkSizeDays })
-  if (currentEnd > syncEndDate) {
-    currentEnd = syncEndDate
+  // Вычисляем окно: идем назад на chunkSizeDays
+  let currentStart = currentEnd.minus({ days: chunkSizeDays })
+
+  // Не проваливаемся ниже лимита
+  if (currentStart < hardLimit) {
+    currentStart = hardLimit
   }
 
   const fromTs = Math.floor(currentStart.toSeconds())
   const toTs = Math.floor(currentEnd.toSeconds())
 
   logger.info(
-    `[AmoCRM] [Historical] Запрос интервала: ${currentStart.toISODate()} - ${currentEnd.toISODate()} (Окно: ${chunkSizeDays} дн.)`
+    `[AmoCRM] [Historical] Запрос интервала (назад): ${currentStart.toISODate()} - ${currentEnd.toISODate()} (Окно: ${chunkSizeDays} дн.)`
   )
 
   try {
     let intervalCount = 0
 
+    // Используем updatedAt для полной сверки за период
     await api.eachLead({ updatedAt: { from: fromTs, to: toTs } }, async (leads) => {
       if (leads.length > 0) {
         await saveLeadsToDb(ctx, leads)
-
-        const lastLead = leads[leads.length - 1]
-        meta.lastTimestamp = String(lastLead.updated_at)
-
         intervalCount += leads.length
       }
     })
 
     logger.info(`[AmoCRM] [Historical] Интервал успешно загружен. Получено: ${intervalCount}`)
 
-    meta.historicalSyncedUntil = currentEnd
+    // Сдвигаем точку окончания для следующего запуска
+    meta.historicalSyncedUntil = currentStart
+
+    // Если достигли лимита - помечаем успех в стейте
+    if (currentStart <= hardLimit) {
+      logger.info(`[AmoCRM] [Historical] Финиш. Достигнута дата начала: ${hardLimit.toISODate()}`)
+    }
+
     await meta.save()
   } catch (error: any) {
     const errorMsg = (error.message || '').toLowerCase()
@@ -68,14 +81,14 @@ export async function historicalSync(ctx: AmocrmSyncContext): Promise<void> {
     if (isTimeout || isTooLarge) {
       if (chunkSizeDays <= 1) {
         logger.error(
-          `[AmoCRM] [Historical] Окно уже минимально (1 день), но запрос всё равно падает. Требуется ручное вмешательство.`
+          `[AmoCRM] [Historical] Окно уже минимально (1 день), но запрос всё равно падает.`
         )
         throw error
       }
 
       const newChunkSize = Math.floor(chunkSizeDays / 2)
       logger.warn(
-        `[AmoCRM] [Historical] Запрос оказался слишком тяжелым или долгим. Сжимаем окно: ${chunkSizeDays} -> ${newChunkSize} дней.`
+        `[AmoCRM] [Historical] Запрос слишком тяжелый. Сжимаем окно до ${newChunkSize} дней.`
       )
 
       meta.historicalSyncState = {

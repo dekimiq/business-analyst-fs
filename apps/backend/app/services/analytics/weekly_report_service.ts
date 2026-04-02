@@ -23,7 +23,6 @@ export class WeeklyReportService {
     const periodStr = `${start.toFormat('dd.MM.yy')}-${end.toFormat('dd.MM.yy')}`
 
     // 1. Считаем расход из daily_stats
-    // Так как daily_stats.date - это DATE, мы можем сравнивать его напрямую
     const statsResult = await db
       .from('backend.daily_stats as ds')
       .join('backend.ads as ads', 'ds.ad_pk', 'ads.id')
@@ -40,20 +39,24 @@ export class WeeklyReportService {
     const clicks = Number(statsResult?.total_clicks || 0)
     const impressions = Number(statsResult?.total_impressions || 0)
 
-    // 2. Считаем лиды из crm_records
-    // Учитываем record_created_at в UTC
+    // 2. Считаем лиды (заявки) из crm_records
     const leadsResult = await db
-      .from('backend.crm_records')
-      .where('source', 'yandex')
-      .whereBetween('record_created_at', [start.toUTC().toISO()!, end.toUTC().toISO()!])
-      .select(db.raw('COUNT(*) as total_leads'))
+      .from('backend.crm_records as cr')
+      .join('backend.ads as ads', 'cr.ad_pk', 'ads.id')
+      .where('ads.source', 'yandex')
+      .where('cr.is_deleted', false)
+      .whereBetween('cr.record_created_at', [start.toUTC().toISO()!, end.toUTC().toISO()!])
+      .select(db.raw('COUNT(cr.id) as total_leads'))
       .first()
 
     const leadsCount = Number(leadsResult?.total_leads || 0)
 
-    // 3. Выявляем статусы "Оплачено"
-    const paidStatuses = await CrmStatus.query().whereILike('name', '%оплач%').select('id')
-
+    // 3. Выявляем статусы "Оплачено" и все "Успешные" реализации
+    const paidStatuses = await CrmStatus.query()
+      .where((query) => {
+        query.whereILike('name', '%оплач%').orWhereILike('name', '%успеш%')
+      })
+      .select('id')
     const paidStatusIds = paidStatuses.map((s) => s.id)
 
     // 4. Считаем оплаты и сумму продаж
@@ -62,16 +65,15 @@ export class WeeklyReportService {
 
     if (paidStatusIds.length > 0) {
       const salesResult = await db
-        .from('backend.crm_records')
-        .where('source', 'yandex')
-        .whereIn('status_id', paidStatusIds)
-        .whereBetween('record_created_at', [start.toUTC().toISO()!, end.toUTC().toISO()!])
-        // TODO: убрать временную заглушку на budget
+        .from('backend.crm_records as cr')
+        .join('backend.ads as ads', 'cr.ad_pk', 'ads.id')
+        .where('ads.source', 'yandex')
+        .whereIn('cr.status_id', paidStatusIds)
+        .where('cr.is_deleted', false)
+        .whereBetween('cr.record_created_at', [start.toUTC().toISO()!, end.toUTC().toISO()!])
         .select(
-          db.raw('COUNT(*) as total_payments'),
-          db.raw(
-            'SUM(CASE WHEN budget IS NULL OR budget = 0 THEN 40000 ELSE budget END) as total_sales'
-          )
+          db.raw('COUNT(cr.id) as total_payments'),
+          db.raw('SUM(COALESCE(cr.budget, 0)) as total_sales')
         )
         .first()
 

@@ -99,6 +99,10 @@ export class AmocrmSyncServiceFacade implements ISyncService {
 
       // 4. Синхронизация данных
       if (effectiveMode === 'heavy') {
+        // Сначала подтягиваем "онлайн" (последние изменения),
+        // чтобы актуалка была в приоритете.
+        await incrementalSync(context)
+        // Затем идем копать историю вглубь
         await historicalSync(context)
       } else {
         await incrementalSync(context)
