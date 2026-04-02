@@ -17,10 +17,10 @@ export async function syncHistoricalStats(ctx: YandexSyncContext): Promise<void>
   if (!meta.syncStartDate) return
   const hardLimit = meta.syncStartDate
 
-  const yesterday = DateTime.now().toUTC().minus({ days: 1 }).startOf('day')
+  const now = DateTime.now().toUTC().startOf('day')
   const currentStart = meta.historicalSyncedUntil
     ? meta.historicalSyncedUntil.minus({ days: 1 })
-    : yesterday
+    : now
 
   if (currentStart < hardLimit) {
     logger.info(`Историческая синхронизация достигла лимита (${hardLimit.toISODate()}). Готово.`)

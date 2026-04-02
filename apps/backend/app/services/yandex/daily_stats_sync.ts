@@ -17,8 +17,8 @@ import type { YandexSyncContext } from './yandex_sync_context.js'
 export async function syncDailyStats(ctx: YandexSyncContext): Promise<void> {
   const { meta, api, logger, source } = ctx
 
-  const yesterday = DateTime.now().toUTC().minus({ days: 1 }).startOf('day')
-  const dateTo = yesterday
+  const now = DateTime.now().toUTC()
+  const dateTo = now
 
   const statBorderDate: string | undefined = (meta.historicalSyncState as any)?.statBorderDate
   let dateFrom: DateTime
@@ -52,7 +52,7 @@ export async function syncDailyStats(ctx: YandexSyncContext): Promise<void> {
     logger.info('[DailyStats] statBorderDate сброшен.')
   }
 
-  meta.lastSuccessSyncDate = yesterday
+  meta.lastSuccessSyncDate = now
   await meta.save()
   logger.info(`[DailyStats] Завершено. Сохранено строк: ${stats.length}`)
 }
