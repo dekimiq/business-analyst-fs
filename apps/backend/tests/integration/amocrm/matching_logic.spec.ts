@@ -67,6 +67,7 @@ test.group('AmoCRM Logic: Сопоставление и Fallback', (group) => {
     })
 
     nock(AMOCRM_BASE).get('/api/v4/leads/pipelines').reply(200, toPipelinesResponse([]))
+    nock(AMOCRM_BASE).get('/api/v4/events').query(true).reply(204)
     nock(AMOCRM_BASE)
       .get('/api/v4/leads')
       .query(true)
@@ -99,6 +100,7 @@ test.group('AmoCRM Logic: Сопоставление и Fallback', (group) => {
     })
 
     nock(AMOCRM_BASE).get('/api/v4/leads/pipelines').reply(200, toPipelinesResponse([]))
+    nock(AMOCRM_BASE).get('/api/v4/events').query(true).reply(204)
     nock(AMOCRM_BASE)
       .get('/api/v4/leads')
       .query(true)

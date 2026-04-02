@@ -51,8 +51,9 @@ test.group('AmoCRM Sync: Историческая синхронизация', (
       historicalSyncState: { chunkSize: 30 },
     })
 
-    // В режиме heavy сервис ВСЕГДА проверяет воронки
+    // В режиме heavy сервис ВСЕГДА проверяет воронки и делает инкрементальный прогон (Events API)
     nock(AMOCRM_BASE).get('/api/v4/leads/pipelines').reply(200, toPipelinesResponse([]))
+    nock(AMOCRM_BASE).get('/api/v4/events').query(true).reply(204)
 
     // 2. Мокаем API leads
     nock(AMOCRM_BASE)
@@ -78,8 +79,9 @@ test.group('AmoCRM Sync: Историческая синхронизация', (
       historicalSyncState: { chunkSize: 30 },
     })
 
-    // В режиме heavy сервис ВСЕГДА проверяет воронки
+    // В режиме heavy сервис ВСЕГДА проверяет воронки и делает инкрементальный прогон (Events API)
     nock(AMOCRM_BASE).get('/api/v4/leads/pipelines').reply(200, toPipelinesResponse([]))
+    nock(AMOCRM_BASE).get('/api/v4/events').query(true).reply(204)
 
     // 2. Мокаем ошибку 400
     nock(AMOCRM_BASE)

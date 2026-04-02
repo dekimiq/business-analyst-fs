@@ -64,7 +64,8 @@ test.group('AmoCRM Sync: Структурная синхронизация', (gr
     nock(AMOCRM_BASE).get('/api/v4/leads/pipelines').reply(200, response)
 
     // Мокаем вызовы данных, чтобы тест не упал на следующих фазах (heavy mode)
-    // Historical sync будет вызван, так как lastTimestamp пуст
+    // Теперь heavy mode вызывает сначала incrementalSync (Events API), а потом historicalSync (Leads API)
+    nock(AMOCRM_BASE).get('/api/v4/events').query(true).reply(204)
     nock(AMOCRM_BASE)
       .get('/api/v4/leads')
       .query(true) // любые query параметры
@@ -119,6 +120,7 @@ test.group('AmoCRM Sync: Структурная синхронизация', (gr
     nock(AMOCRM_BASE)
       .get('/api/v4/leads/pipelines')
       .reply(200, toPipelinesResponse([pipelineData]))
+    nock(AMOCRM_BASE).get('/api/v4/events').query(true).reply(204)
     nock(AMOCRM_BASE)
       .get('/api/v4/leads')
       .query(true)
@@ -136,10 +138,7 @@ test.group('AmoCRM Sync: Структурная синхронизация', (gr
     nock(AMOCRM_BASE)
       .get('/api/v4/leads/pipelines')
       .reply(200, toPipelinesResponse([pipelineData]))
-    nock(AMOCRM_BASE)
-      .get('/api/v4/leads')
-      .query(true)
-      .reply(200, { _embedded: { leads: [] } })
+    nock(AMOCRM_BASE).get('/api/v4/events').query(true).reply(204)
 
     await service.sync(false, 'heavy')
 

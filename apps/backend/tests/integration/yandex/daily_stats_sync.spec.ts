@@ -58,8 +58,8 @@ test.group('YandexSyncService: Ежедневная статистика (Гру
 
     await setupMeta({ referenceSyncPhase: ReferenceSyncPhase.DONE, lastTimestamp: 'ts-initial' })
 
-    // Даты периода (вчера - 3 дня)
-    const yesterday = DateTime.now().toUTC().minus({ days: 1 }).toISODate()!
+    // Даты периода (сегодня - 3 дня)
+    const today = DateTime.now().toUTC().toISODate()!
     const from = DateTime.now().toUTC().minus({ days: 3 }).toISODate()!
 
     // 2. Действие (Mocks)
@@ -67,7 +67,7 @@ test.group('YandexSyncService: Ежедневная статистика (Гру
 
     // Мокаем запрос статистики
     const sampleStat = {
-      Date: yesterday,
+      Date: today,
       AdId: Number(ad.adId),
       Impressions: 500,
       Clicks: 50,
@@ -80,7 +80,7 @@ test.group('YandexSyncService: Ежедневная статистика (Гру
         '/json/v5/reports',
         (body) =>
           body.params?.SelectionCriteria?.DateFrom === from &&
-          body.params?.SelectionCriteria?.DateTo === yesterday
+          body.params?.SelectionCriteria?.DateTo === today
       )
       .reply(200, reportData, { 'Content-Type': 'text/plain' })
 
@@ -97,7 +97,7 @@ test.group('YandexSyncService: Ежедневная статистика (Гру
     assert.equal(stats.length, 1)
     assert.equal(stats[0].impressions, 500)
     assert.equal(stats[0].cost, 55) // / 1_000_000
-    assert.equal(stats[0].date.toISODate(), yesterday)
+    assert.equal(stats[0].date.toISODate(), today)
   })
 
   // ─────────────────────────────────────────────────────────────────────
