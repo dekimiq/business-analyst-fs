@@ -255,10 +255,12 @@ export class YandexApiClient implements IYandexApiClient {
     dateFrom,
     dateTo,
     reportName,
+    processingMode = 'auto',
   }: {
     dateFrom: DateTime
     dateTo: DateTime
     reportName?: string
+    processingMode?: 'auto' | 'online' | 'offline'
   }): Promise<YandexDailyStat[]> {
     if (!dateFrom.isValid || !dateTo.isValid) {
       throw new Error('API запрос `reports`: некорректная дата.')
@@ -292,6 +294,7 @@ export class YandexApiClient implements IYandexApiClient {
           },
           {
             headers: {
+              processingMode: processingMode.toUpperCase(),
               returnMoneyInMicros: 'true',
               skipReportHeader: 'true',
               skipColumnHeader: 'false',

@@ -23,21 +23,28 @@ export async function syncDailyStats(ctx: YandexSyncContext): Promise<void> {
   const statBorderDate: string | undefined = (meta.historicalSyncState as any)?.statBorderDate
   let dateFrom: DateTime
 
+  const yesterday = now.minus({ days: 1 }).startOf('day')
+  const lastSuccess = meta.lastSuccessSyncDate
+    ? meta.lastSuccessSyncDate.minus({ days: 1 }).startOf('day')
+    : yesterday
+
+  dateFrom = DateTime.min(yesterday, lastSuccess)
+
   if (statBorderDate) {
-    dateFrom = DateTime.fromISO(statBorderDate).toUTC().startOf('day')
+    const border = DateTime.fromISO(statBorderDate).toUTC().startOf('day')
+    dateFrom = DateTime.min(dateFrom, border)
     logger.info(
-      `[DailyStats] STAT-корректировка обнаружена. Интервал: ${dateFrom.toISODate()} → ${dateTo.toISODate()}`
+      `[DailyStats] STAT-корректировка обнаружена (${statBorderDate}). Интервал: ${dateFrom.toISODate()} → ${dateTo.toISODate()}`
     )
   } else {
-    dateFrom = DateTime.now().toUTC().minus({ days: 3 }).startOf('day')
-    logger.info(`[DailyStats] Стандартный хвост: ${dateFrom.toISODate()} → ${dateTo.toISODate()}`)
+    logger.info(`[DailyStats] Умное окно: ${dateFrom.toISODate()} → ${dateTo.toISODate()}`)
   }
 
   if (dateFrom > dateTo) {
     dateFrom = dateTo
   }
 
-  const stats = await api.getDailyStats({ dateFrom, dateTo })
+  const stats = await api.getDailyStats({ dateFrom, dateTo, processingMode: 'online' })
   logger.info(`[DailyStats] Получено ${stats.length} строк из Яндекса.`)
 
   if (stats.length > 0) {

@@ -24,6 +24,7 @@ export interface IYandexApiClient {
     dateFrom: DateTime
     dateTo: DateTime
     reportName?: string
+    processingMode?: 'auto' | 'online' | 'offline'
   }): Promise<YandexDailyStat[]>
 
   // Changes API
