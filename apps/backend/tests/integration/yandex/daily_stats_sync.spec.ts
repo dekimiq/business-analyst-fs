@@ -58,9 +58,10 @@ test.group('YandexSyncService: Ежедневная статистика (Гру
 
     await setupMeta({ referenceSyncPhase: ReferenceSyncPhase.DONE, lastTimestamp: 'ts-initial' })
 
-    // Даты периода (сегодня - 3 дня)
+    // Даты периода (вчера - сегодня)
     const today = DateTime.now().toUTC().toISODate()!
-    const from = DateTime.now().toUTC().minus({ days: 3 }).toISODate()!
+    const yesterday = DateTime.now().toUTC().minus({ days: 1 }).toISODate()!
+    const from = yesterday // т.к. lastSuccessSyncDate пустой
 
     // 2. Действие (Mocks)
     nockChangesEmpty(nock, 'ts-new') // syncIncremental
@@ -75,7 +76,11 @@ test.group('YandexSyncService: Ежедневная статистика (Гру
     }
     const reportData = makeTsvReport([sampleStat])
 
-    nock(YANDEX_BASE)
+    nock(YANDEX_BASE, {
+      reqheaders: {
+        processingmode: 'ONLINE',
+      },
+    })
       .post(
         '/json/v5/reports',
         (body) =>
@@ -128,7 +133,11 @@ test.group('YandexSyncService: Ежедневная статистика (Гру
     // 2. Действие (Mocks)
     nockChangesEmpty(nock, 'ts-new') // syncIncremental
 
-    nock(YANDEX_BASE)
+    nock(YANDEX_BASE, {
+      reqheaders: {
+        processingmode: 'ONLINE',
+      },
+    })
       .post('/json/v5/reports', (body) => body.params?.SelectionCriteria?.DateFrom === expectedFrom)
       .reply(200, EMPTY_REPORTS_TSV, { 'Content-Type': 'text/plain' })
 
