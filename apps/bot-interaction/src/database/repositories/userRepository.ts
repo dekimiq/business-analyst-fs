@@ -2,10 +2,8 @@ import type { Knex } from 'knex'
 import { getDb } from '../client.js'
 import type { UserRole, UserRow } from '../types.js'
 
-// Роли, которым будет рассылаться уведомление
 const NOTIFICATION_ROLES: UserRole[] = ['dev']
 
-// Репозиторий для операций с таблицей bot.users
 export class UserRepository {
   private get db(): Knex {
     return getDb()
@@ -13,6 +11,16 @@ export class UserRepository {
 
   async findByUserId(userId: string): Promise<UserRow | undefined> {
     return this.db<UserRow>('bot.users').where({ user_id: userId }).first()
+  }
+
+  async findByUsername(username: string): Promise<UserRow | undefined> {
+    return this.db<UserRow>('bot.users').where({ username }).first()
+  }
+
+  async update(id: number, data: Partial<UserRow>): Promise<void> {
+    await this.db<UserRow>('bot.users')
+      .where({ id })
+      .update({ ...data, updated_at: new Date() })
   }
 
   async findNotificationRecipients(): Promise<UserRow[]> {

@@ -19,6 +19,9 @@ export default class Ad extends BaseModel {
   declare source: string
 
   @column()
+  declare status: string | null
+
+  @column()
   declare title: string | null
 
   @column()

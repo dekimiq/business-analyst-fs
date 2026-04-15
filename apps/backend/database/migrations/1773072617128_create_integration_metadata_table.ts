@@ -10,11 +10,15 @@ export default class extends BaseSchema {
       table.string('last_timestamp').nullable()
       table.date('sync_start_date').nullable()
 
-      table.date('synced_until').nullable()
+      table.date('historical_synced_until').nullable()
+      table.jsonb('historical_sync_state').nullable()
 
       table.timestamp('last_success_sync_date').nullable()
 
-      table.string('sync_status', 20).nullable().comment('partial | success | error | null')
+      table
+        .string('sync_status', 20)
+        .nullable()
+        .comment('null | pending | in_progress | success | failed')
       table
         .string('reference_sync_phase', 20)
         .nullable()

@@ -1,4 +1,4 @@
-import type { AmoLead } from '../types/amocrm.ts'
+import type { AmoLead, AmoEvent, AmoPipeline } from '../types/amocrm.ts'
 import { DateTime } from 'luxon'
 
 export interface AmoLeadFilter {
@@ -41,4 +41,28 @@ export interface IAmocrmApiClient {
    * Используется для первичной загрузки всех сделок.
    */
   getAllLeads(filter?: AmoLeadFilter): Promise<AmoLead[]>
+
+  /**
+   * Получить список воронок и их этапов.
+   */
+  getPipelines(): Promise<AmoPipeline[]>
+
+  /**
+   * Получить события порционно (callback-based).
+   */
+  eachEvent(createdAtFrom: number, callback: (events: AmoEvent[]) => Promise<void>): Promise<void>
+
+  /**
+   * Получить сделки порционно (callback-based).
+   */
+  eachLead(
+    filter: AmoLeadFilter,
+    callback: (leads: AmoLead[]) => Promise<void>,
+    limit?: number
+  ): Promise<void>
+
+  /**
+   * Получить сделки пакетно по списку ID.
+   */
+  getLeadsByIds(ids: number[]): Promise<AmoLead[]>
 }

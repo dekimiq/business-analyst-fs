@@ -1,6 +1,6 @@
 import { type HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
-// import redis from '@adonisjs/redis/services/main'
+import redis from '@adonisjs/redis/services/main'
 import IntegrationMetadata from '#models/integration_metadata'
 import { ApiResponse } from '#utils/api_response'
 import { installTokenValidator } from '#validators/global'
@@ -21,8 +21,10 @@ export default class GlobalController {
       dbOk = true
     } catch (e) {}
 
-    // Redis временно всегда ok, так как провайдер не сконфигурирован в adonisrc.ts
-    redisOk = true
+    try {
+      await redis.ping()
+      redisOk = true
+    } catch (e) {}
 
     const systemHealth = {
       database: dbOk ? 'ok' : 'error',
@@ -62,7 +64,7 @@ export default class GlobalController {
         },
         sync: {
           lastSuccessAt: integration.lastSuccessSyncDate?.toISO() || null,
-          syncedUntil: integration.syncedUntil?.toISODate() || null,
+          syncedUntil: integration.historicalSyncedUntil?.toISODate() || null,
           lastError: integration.lastError,
         },
       }
@@ -86,7 +88,7 @@ export default class GlobalController {
 
     let isValid = false
     if (source === 'yandex') {
-      const { YandexApiClient } = await import('#services/yandex/yandex_api_client')
+      const { YandexApiClient } = await import('#services/yandex/api_client')
       const api = new YandexApiClient(token)
       isValid = await api.ping()
     } else if (source === 'amocrm') {

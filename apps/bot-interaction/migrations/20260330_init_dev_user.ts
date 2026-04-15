@@ -1,7 +1,10 @@
 import type { Knex } from 'knex'
 import { env } from '@project/env'
 
-export async function seed(knex: Knex): Promise<void> {
+/**
+ * Инициализация первого разработчика (администратора) системы.
+ */
+export async function up(knex: Knex): Promise<void> {
   const schema = 'bot'
 
   const devUserId = env.USER_ID_DEV || '123456789'
@@ -13,3 +16,5 @@ export async function seed(knex: Knex): Promise<void> {
     ON CONFLICT (user_id) DO NOTHING;
   `)
 }
+
+export async function down(knex: Knex): Promise<void> {}

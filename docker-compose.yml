@@ -12,7 +12,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/20-init.sh
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${DB_NAME}"]
       interval: 5s
@@ -25,7 +25,12 @@ services:
     environment:
       TZ: 'UTC'
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
@@ -40,9 +45,30 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     ports:
-      - "3333:3333"
+      - "127.0.0.1:3000:3333"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3333/status', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend-worker:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    command: ["node", "bin/console.js", "jobs:listen", "--queue=sync"]
+    env_file: .env
+    environment:
+      TZ: 'UTC'
+      DB_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   bot-interaction:
     build:
@@ -57,7 +83,7 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   ai-module:
     build:
@@ -72,7 +98,9 @@ services:
       postgres:
         condition: service_healthy
       backend:
-        condition: service_started
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3334:3334"
 
   node-cron:
     build:
@@ -84,8 +112,10 @@ services:
       DB_HOST: postgres
       REDIS_HOST: redis
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -95,7 +125,8 @@ services:
       - "${NGINX_PORT:-80}:80"
       - "${NGINX_SSL_PORT:-443}:443"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:

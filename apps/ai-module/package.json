@@ -13,7 +13,12 @@
     "@maxhub/max-bot-api": "^0.2.2",
     "@project/env": "*",
     "@project/shared": "*",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "ai": "^4.1.0",
+    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "knex": "^3.1.0",
     "pg": "^8.13.1",
     "pgvector": "^0.2.0"

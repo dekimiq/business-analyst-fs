@@ -21,6 +21,9 @@ export default class AdGroup extends BaseModel {
   @column()
   declare name: string
 
+  @column()
+  declare status: string | null
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 

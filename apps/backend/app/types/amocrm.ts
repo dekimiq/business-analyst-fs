@@ -37,3 +37,36 @@ export interface AmoTag {
   id: number
   name: string
 }
+
+export interface AmoEvent {
+  id: number
+  type: string
+  entity_id: number
+  entity_type: string
+  created_at: number
+  account_id: number
+  _embedded?: {
+    entity?: any
+  }
+}
+
+export interface AmoPipeline {
+  id: number
+  name: string
+  sort: number
+  is_main: boolean
+  is_archive: boolean
+  _embedded?: {
+    statuses: AmoStatus[]
+  }
+}
+
+export interface AmoStatus {
+  id: number
+  name: string
+  sort: number
+  is_editable: boolean
+  pipeline_id: number
+  color: string
+  type: number
+}

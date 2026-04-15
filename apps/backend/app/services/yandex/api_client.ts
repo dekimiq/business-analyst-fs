@@ -1,7 +1,5 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import axios, { type AxiosInstance } from 'axios'
-import { DateTime } from 'luxon'
+import { type DateTime } from 'luxon'
 import type { IYandexApiClient } from '#contracts/i_yandex_api_client'
 import type {
   YandexCampaign,
@@ -11,11 +9,14 @@ import type {
   YandexAd,
   YandexGetAds,
   YandexDailyStat,
+  YandexCheckCampaignsResult,
+  YandexCheckResult,
+  ChangeFieldName,
 } from '#types/yandex'
 import { YandexRetryService } from '#utils/yandex_retry'
 
 /**
- * Вспомогательная функция: разбивает массив на чанки заданного размера.
+ * Разбивает массив на чанки заданного размера.
  */
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const result: T[][] = []
@@ -27,7 +28,6 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 
 /**
  * Реальный HTTP-клиент для API Яндекс.Директ.
- * Принимает OAuth-токен, создаёт axios-инстанс с базовым URL JSON API v5.
  */
 export class YandexApiClient implements IYandexApiClient {
   private readonly client: AxiosInstance
@@ -35,87 +35,19 @@ export class YandexApiClient implements IYandexApiClient {
   constructor(token: string) {
     this.client = axios.create({
       baseURL: 'https://api.direct.yandex.com/json/v5/',
+      adapter: 'http', // Принудительно для работы Nock в Node 20+
       proxy: false,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept-Language': 'ru',
       },
     })
-
-    this.setupLogging()
-  }
-
-  // ---------------------------------------------------------------------------
-  // Logging (Debug)
-  // ---------------------------------------------------------------------------
-
-  private setupLogging() {
-    this.client.interceptors.request.use(async (config) => {
-      await this.logRequestResponse('request', {
-        url: config.url,
-        method: config.method,
-        headers: this.censorHeaders(config.headers as any),
-        data: config.data,
-      })
-      return config
-    })
-
-    this.client.interceptors.response.use(
-      async (response) => {
-        await this.logRequestResponse('response', {
-          url: response.config.url,
-          status: response.status,
-          headers: response.headers,
-          data: response.data,
-        })
-        return response
-      },
-      async (error) => {
-        await this.logRequestResponse('error', {
-          url: error.config?.url,
-          status: error.response?.status,
-          message: error.message,
-          data: error.response?.data,
-        })
-        return Promise.reject(error)
-      }
-    )
-  }
-
-  private async logRequestResponse(type: 'request' | 'response' | 'error', data: any) {
-    try {
-      const debugDir = path.join(process.cwd(), '..', '..', 'debug')
-      await fs.mkdir(debugDir, { recursive: true })
-
-      const logPath = path.join(debugDir, 'yandex_api_debug.json')
-      const entry = JSON.stringify({ timestamp: new Date().toISOString(), type, ...data }) + '\n'
-
-      await fs.appendFile(logPath, entry, 'utf-8')
-    } catch (err) {
-      console.error('[YandexApiClient] Error writing debug log:', err)
-    }
-  }
-
-  private censorHeaders(headers: Record<string, string>) {
-    const censored = { ...headers }
-    const authHeaders = ['Authorization', 'authorization']
-
-    for (const h of authHeaders) {
-      if (censored[h]) {
-        censored[h] = 'Bearer [CENSORED]'
-      }
-    }
-
-    return censored
   }
 
   // ---------------------------------------------------------------------------
   // Ping
   // ---------------------------------------------------------------------------
 
-  /**
-   * Проверяет валидность токена минимальным запросом к API (getCampaigns с Limit=1).
-   */
   async ping(): Promise<boolean> {
     try {
       await YandexRetryService.call(() =>
@@ -160,16 +92,21 @@ export class YandexApiClient implements IYandexApiClient {
   }
 
   // ---------------------------------------------------------------------------
-  // Campaigns / AdGroups / Ads
+  // Campaigns
   // ---------------------------------------------------------------------------
 
-  async getCampaigns(): Promise<YandexCampaign[]> {
+  /**
+   * Получить кампании. Если передан массив ids — фильтруем по ним (инкрементальное обновление).
+   */
+  async getCampaigns(ids?: number[]): Promise<YandexCampaign[]> {
+    const selectionCriteria = ids && ids.length > 0 ? { Ids: ids } : {}
+
     return this.fetchAllPages<YandexCampaign, YandexGetCampaigns>(
       (page) =>
         this.client.post('campaigns', {
           method: 'get',
           params: {
-            SelectionCriteria: {},
+            SelectionCriteria: selectionCriteria,
             FieldNames: ['Id', 'Name', 'Type', 'Status', 'State'],
             Page: page,
           },
@@ -178,12 +115,22 @@ export class YandexApiClient implements IYandexApiClient {
     )
   }
 
+  // ---------------------------------------------------------------------------
+  // AdGroups
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Получить группы по ID кампаний (полная синхронизация кампании).
+   * Чисто фильтруется по CampaignIds.
+   */
   async getAdGroups(campaignIds: number[]): Promise<YandexAdGroup[]> {
     if (campaignIds.length === 0) {
       throw new Error('API запрос `adgroups`: список CampaignIds не может быть пустым.')
     }
 
-    const chunks = chunkArray(campaignIds, 10)
+    // Лимит для CampaignIds в SelectionCriteria часто составляет 10 элементов
+    const uniqueIds = Array.from(new Set(campaignIds))
+    const chunks = chunkArray(uniqueIds, 10)
     const all: YandexAdGroup[] = []
 
     for (const chunk of chunks) {
@@ -205,12 +152,50 @@ export class YandexApiClient implements IYandexApiClient {
     return all
   }
 
+  /**
+   * Получить группы по конкретным ID (инкрементальное обновление changed groups).
+   */
+  async getAdGroupsByIds(ids: number[]): Promise<YandexAdGroup[]> {
+    if (ids.length === 0) return []
+
+    const uniqueIds = Array.from(new Set(ids))
+    const chunks = chunkArray(uniqueIds, 10_000)
+    const all: YandexAdGroup[] = []
+
+    for (const chunk of chunks) {
+      const items = await this.fetchAllPages<YandexAdGroup, YandexGetAdGroups>(
+        (page) =>
+          this.client.post('adgroups', {
+            method: 'get',
+            params: {
+              SelectionCriteria: { Ids: chunk },
+              FieldNames: ['Id', 'Name', 'CampaignId'],
+              Page: page,
+            },
+          }),
+        (result) => result.result.AdGroups
+      )
+      all.push(...items)
+    }
+
+    return all
+  }
+
+  // ---------------------------------------------------------------------------
+  // Ads
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Получить объявления по ID групп (полная синхронизация группы).
+   */
   async getAds(adGroupIds: number[]): Promise<YandexAd[]> {
     if (adGroupIds.length === 0) {
       throw new Error('API запрос `ads`: список AdGroupIds не может быть пустым.')
     }
 
-    const chunks = chunkArray(adGroupIds, 1_000)
+    // Лимит для AdGroupIds в SelectionCriteria может быть ограничен 1000, но для надежности ставим 100 или 10
+    const uniqueIds = Array.from(new Set(adGroupIds))
+    const chunks = chunkArray(uniqueIds, 10)
     const all: YandexAd[] = []
 
     for (const chunk of chunks) {
@@ -233,6 +218,35 @@ export class YandexApiClient implements IYandexApiClient {
     return all
   }
 
+  /**
+   * Получить объявления по конкретным ID (инкрементальное обновление changed ads).
+   */
+  async getAdsByIds(ids: number[]): Promise<YandexAd[]> {
+    if (ids.length === 0) return []
+
+    const chunks = chunkArray(ids, 10_000)
+    const all: YandexAd[] = []
+
+    for (const chunk of chunks) {
+      const items = await this.fetchAllPages<YandexAd, YandexGetAds>(
+        (page) =>
+          this.client.post('ads', {
+            method: 'get',
+            params: {
+              SelectionCriteria: { Ids: chunk },
+              FieldNames: ['Id', 'AdGroupId', 'Type', 'State', 'Status'],
+              TextAdFieldNames: ['Title', 'Text'],
+              Page: page,
+            },
+          }),
+        (result) => result.result.Ads
+      )
+      all.push(...items)
+    }
+
+    return all
+  }
+
   // ---------------------------------------------------------------------------
   // Daily stats (Reports API — TSV)
   // ---------------------------------------------------------------------------
@@ -240,9 +254,13 @@ export class YandexApiClient implements IYandexApiClient {
   async getDailyStats({
     dateFrom,
     dateTo,
+    reportName,
+    processingMode = 'auto',
   }: {
     dateFrom: DateTime
     dateTo: DateTime
+    reportName?: string
+    processingMode?: 'auto' | 'online' | 'offline'
   }): Promise<YandexDailyStat[]> {
     if (!dateFrom.isValid || !dateTo.isValid) {
       throw new Error('API запрос `reports`: некорректная дата.')
@@ -263,7 +281,9 @@ export class YandexApiClient implements IYandexApiClient {
             params: {
               SelectionCriteria: { DateFrom: from, DateTo: to },
               FieldNames: ['Date', 'AdId', 'Impressions', 'Clicks', 'Cost', 'Ctr', 'AvgCpc'],
-              ReportName: `daily_${from}_${to}_${Date.now()}_${offset}`,
+              ReportName: reportName
+                ? `${reportName}_${offset}`
+                : `dl_${from.replace(/-/g, '')}_${to.replace(/-/g, '')}_${offset}`,
               ReportType: 'AD_PERFORMANCE_REPORT',
               DateRangeType: 'CUSTOM_DATE',
               Format: 'TSV',
@@ -274,6 +294,7 @@ export class YandexApiClient implements IYandexApiClient {
           },
           {
             headers: {
+              processingMode: processingMode.toUpperCase(),
               returnMoneyInMicros: 'true',
               skipReportHeader: 'true',
               skipColumnHeader: 'false',
@@ -301,14 +322,108 @@ export class YandexApiClient implements IYandexApiClient {
   // ---------------------------------------------------------------------------
 
   async getServerTimestamp(): Promise<string> {
-    try {
-      const result = await this.checkChanges('1970-01-01T00:00:00Z')
-      return result.Timestamp
-    } catch {
-      return DateTime.now().toUTC().toFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
-    }
+    const result = await this.checkCampaigns('1970-01-01T00:00:00Z')
+    return result.Timestamp
   }
 
+  /**
+   * Changes.checkCampaigns — получить список кампаний с флагами изменений.
+   * Возвращает массив с`ChangesIn: ['SELF', 'CHILDREN', 'STAT']`.
+   */
+  async checkCampaigns(timestamp: string): Promise<YandexCheckCampaignsResult> {
+    const response = await YandexRetryService.call(() =>
+      this.client.post('changes', {
+        method: 'checkCampaigns',
+        params: { Timestamp: timestamp },
+      })
+    )
+
+    return response.data.result as YandexCheckCampaignsResult
+  }
+
+  /**
+   * Changes.check — универсальный метод для получения изменений по списку ID кампаний.
+   *
+   * Лимиты (по документации Яндекс.Директ):
+   *  - CampaignIds: до 3 000 элементов
+   *  - AdGroupIds:  до 10 000 элементов
+   *  - AdIds:       до 50 000 элементов
+   *
+   * Параметры CampaignIds, AdGroupIds, AdIds — взаимоисключающие в одном запросе.
+   * Собирает данные чанками и рекурсивно добирает Unprocessed.
+   */
+  async check(params: {
+    timestamp: string
+    campaignIds: number[]
+    fieldNames: ChangeFieldName[]
+  }): Promise<YandexCheckResult> {
+    const { timestamp, campaignIds, fieldNames } = params
+
+    if (campaignIds.length === 0) {
+      return { Timestamp: timestamp }
+    }
+
+    const chunks = chunkArray(campaignIds, 3_000)
+    const accumulated: YandexCheckResult = { Timestamp: timestamp }
+
+    for (const chunk of chunks) {
+      const response = await YandexRetryService.call(() =>
+        this.client.post('changes', {
+          method: 'check',
+          params: {
+            Timestamp: timestamp,
+            CampaignIds: chunk,
+            FieldNames: fieldNames,
+          },
+        })
+      )
+
+      const result = response.data.result as YandexCheckResult
+      accumulated.Timestamp = result.Timestamp
+
+      if (result.Modified) {
+        accumulated.Modified = accumulated.Modified ?? {}
+        for (const [key, ids] of Object.entries(result.Modified) as [string, number[]][]) {
+          const k = key as keyof typeof accumulated.Modified
+          accumulated.Modified[k] = [...(accumulated.Modified[k] ?? []), ...ids]
+        }
+      }
+
+      if (result.NotFound) {
+        accumulated.NotFound = accumulated.NotFound ?? {}
+        for (const [key, ids] of Object.entries(result.NotFound) as [string, number[]][]) {
+          const k = key as keyof typeof accumulated.NotFound
+          accumulated.NotFound[k] = [...(accumulated.NotFound[k] ?? []), ...ids]
+        }
+      }
+
+      if (result.CampaignsStat) {
+        accumulated.CampaignsStat = [...(accumulated.CampaignsStat ?? []), ...result.CampaignsStat]
+      }
+
+      if (result.Unprocessed?.CampaignIds && result.Unprocessed.CampaignIds.length > 0) {
+        const retried = await this.check({
+          timestamp: result.Timestamp,
+          campaignIds: result.Unprocessed.CampaignIds,
+          fieldNames,
+        })
+
+        if (retried.Modified) {
+          accumulated.Modified = accumulated.Modified ?? {}
+          for (const [key, ids] of Object.entries(retried.Modified) as [string, number[]][]) {
+            const k = key as keyof typeof accumulated.Modified
+            accumulated.Modified[k] = [...(accumulated.Modified[k] ?? []), ...ids]
+          }
+        }
+      }
+    }
+
+    return accumulated
+  }
+
+  /**
+   * @deprecated Используй checkCampaigns / check напрямую.
+   */
   async checkChanges(
     lastTimestamp: string,
     campaignIds?: number[]
@@ -316,21 +431,16 @@ export class YandexApiClient implements IYandexApiClient {
     Timestamp: string
     CampaignsStat?: Array<{ CampaignId: number; BorderDate?: string }>
   }> {
-    const params: Record<string, unknown> = { Timestamp: lastTimestamp }
-
     if (campaignIds && campaignIds.length > 0) {
-      params.FieldNames = ['CampaignsStat']
-      params.CampaignIds = campaignIds.slice(0, 10_000)
+      return this.check({
+        timestamp: lastTimestamp,
+        campaignIds,
+        fieldNames: ['CampaignsStat'],
+      })
     }
 
-    const response = await YandexRetryService.call(() =>
-      this.client.post('changes', { method: 'check', params })
-    )
-
-    return response.data.result as {
-      Timestamp: string
-      CampaignsStat?: Array<{ CampaignId: number; BorderDate?: string }>
-    }
+    const result = await this.checkCampaigns(lastTimestamp)
+    return { Timestamp: result.Timestamp }
   }
 
   // ---------------------------------------------------------------------------

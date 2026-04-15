@@ -13,14 +13,14 @@ export default class SystemController {
     const integrations = await IntegrationMetadata.all()
 
     for (const integration of integrations) {
-      if (integration.source !== 'amocrm' && integration.syncStartDate) {
+      if (integration.syncStartDate) {
         return response.badRequest(
           ApiResponse.error(`Дата начала синхронизации уже установлена для ${integration.source}`)
         )
       }
     }
 
-    await IntegrationMetadata.query().whereNot('source', 'amocrm').update({ syncStartDate })
+    await IntegrationMetadata.query().update({ syncStartDate })
 
     return response.ok(ApiResponse.ok('Глобальная дата начала синхронизации установлена'))
   }
@@ -28,8 +28,9 @@ export default class SystemController {
   /**
    * Принудительный запуск синхронизации (через очередь BullMQ)
    */
-  public async forceSync({ params, response }: HttpContext) {
+  public async forceSync({ params, request, response }: HttpContext) {
     const { source } = params
+    const mode = request.input('mode') // Получаем 'light' или 'heavy' из query string
 
     const integration = await IntegrationMetadata.findBy('source', source)
     if (!integration) {
@@ -37,10 +38,30 @@ export default class SystemController {
     }
 
     const { SyncProducerService } = await import('#services/sync_producer_service')
-    await SyncProducerService.getInstance().enqueueSync(source, true)
+    // Передаем true (force) и выбранный режим
+    await SyncProducerService.getInstance().enqueueSync(source, true, mode as any)
 
     return response.ok(
-      ApiResponse.ok(`Синхронизация для ${source} поставлена в очередь (force mode)`)
+      ApiResponse.ok(`Синхронизация для ${source} (${mode || 'default'}) запущена вручную`)
+    )
+  }
+
+  /**
+   * Запуск синхронизации внешних источников по расписанию (cron)
+   */
+  public async cronSync({ request, response }: HttpContext) {
+    const { source, mode } = request.all()
+
+    if (!source) {
+      return response.badRequest(ApiResponse.error('Параметр source обязателен'))
+    }
+
+    const { SyncProducerService } = await import('#services/sync_producer_service')
+    // mode может быть 'light', 'heavy' или undefined
+    await SyncProducerService.getInstance().enqueueSync(source, false, mode as any)
+
+    return response.ok(
+      ApiResponse.ok(`Запланирована ${mode || 'default'} синхронизация ${source} (cron)`)
     )
   }
 
