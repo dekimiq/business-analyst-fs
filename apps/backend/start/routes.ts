@@ -33,7 +33,7 @@ router.post('/tokens/install', [GlobalController, 'installToken'])
 // ---------------------------------------------------------------------------
 router
   .group(() => {
-    router.post('/config', [AmocrmController, 'setConfig'])
+    router.post('/setup', [AmocrmController, 'setup'])
   })
   .prefix('/amocrm')
 

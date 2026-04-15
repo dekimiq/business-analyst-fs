@@ -2,12 +2,14 @@ import { type HttpContext } from '@adonisjs/core/http'
 import IntegrationMetadata from '#models/integration_metadata'
 import { amocrmConfigValidator } from '#validators/amocrm'
 import { ApiResponse } from '#utils/api_response'
+import { env } from '@project/env'
+import axios from 'axios'
 
 export default class AmocrmController {
   /**
-   * Настройка конфигурации AmoCRM (domain, client_id, client_secret)
+   * Установка конфигурации AmoCRM и обмен кода на токены
    */
-  public async setConfig({ request, response }: HttpContext) {
+  public async setup({ request, response }: HttpContext) {
     // 1. Предварительная нормализация (до основной валидации)
     let rawDomain = request.input('domain') || ''
 
@@ -21,7 +23,7 @@ export default class AmocrmController {
 
     // 2. Валидация базовых правил (длина, формат)
     const payload = await request.validateUsing(amocrmConfigValidator)
-    const { domain, client_id, client_secret } = payload
+    const { domain, code } = payload
 
     /**
      * 3. ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА (Окно возможностей)
@@ -34,21 +36,49 @@ export default class AmocrmController {
       }
     }
 
-    const amocrm = await IntegrationMetadata.updateOrCreate(
-      { source: 'amocrm' },
-      {
-        credentials: {
-          domain,
-          client_id,
-          client_secret,
-        },
-      }
-    )
+    try {
+      const client_id = env.AMOCRM_CLIENT_ID
+      const client_secret = env.AMOCRM_CLIENT_SECRET
 
-    return response.ok(
-      ApiResponse.ok('Конфигурация AmoCRM успешно установлена', {
-        domain: amocrm.credentials?.domain,
+      if (!client_id || !client_secret) {
+        return response.internalServerError(
+          ApiResponse.error('Внутренняя ошибка сервера: не заданы глобальные ключи AmoCRM')
+        )
+      }
+
+      // Прямо в процессе настройки обмениваем access код на access и refresh токены
+      const tokenResponse = await axios.post(`https://${domain}/oauth2/access_token`, {
+        client_id,
+        client_secret,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: `https://${env.HUB_DOMAIN}/api/callbacks/amocrm`,
       })
-    )
+
+      const newAccessToken = tokenResponse.data.access_token
+      const newRefreshToken = tokenResponse.data.refresh_token
+
+      const amocrm = await IntegrationMetadata.updateOrCreate(
+        { source: 'amocrm' },
+        {
+          credentials: {
+            domain,
+            access_token: newAccessToken,
+            refresh_token: newRefreshToken,
+          },
+        }
+      )
+
+      return response.ok(
+        ApiResponse.ok('Конфигурация AmoCRM успешно установлена и токены получены', {
+          domain: amocrm.credentials?.domain,
+        })
+      )
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || error.message || 'Неизвестная ошибка'
+      return response.badRequest(
+        ApiResponse.error(`Ошибка при получении токенов от AmoCRM: ${errorMessage}`)
+      )
+    }
   }
 }
