@@ -11,8 +11,7 @@ export const amocrmConfigValidator = vine.compile(
       .trim()
       // Базовая проверка на формат домена (наличие точки)
       .regex(/^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/i),
-    client_id: vine.string().trim().minLength(20),
-    client_secret: vine.string().trim().minLength(40),
+    code: vine.string().trim(),
   })
 )
 
@@ -24,6 +23,4 @@ amocrmConfigValidator.messagesProvider = new SimpleMessagesProvider({
   'minLength': 'Поле {{ field }} слишком короткое (минимум {{ min }} символов)',
   'regex': 'Поле {{ field }} имеет неверный формат',
   'domain.regex': 'Укажите корректный домен (например, domain.amocrm.ru)',
-  'client_id.minLength': 'Длина Client ID должна быть не менее 20 символов',
-  'client_secret.minLength': 'Длина Client Secret должна быть не менее 40 символов',
 })

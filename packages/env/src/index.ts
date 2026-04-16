@@ -48,6 +48,13 @@ const schema = z.object({
   MODEL_NAME_AI: z.string().default('google/gemini-2.0-flash-001'),
   TOKEN_AI: z.string().optional(),
   AI_MODULE_URL: z.string().default('http://localhost:3334'),
+
+  // Hub auth
+  HUB_DOMAIN: z.string().default('auth.yourdomain.com'),
+
+  // AmoCRM Global Integration
+  AMOCRM_CLIENT_ID: z.string().optional(),
+  AMOCRM_CLIENT_SECRET: z.string().optional(),
 })
 
 const parsed = schema.safeParse(process.env)

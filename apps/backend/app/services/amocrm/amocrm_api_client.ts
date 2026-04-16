@@ -2,15 +2,20 @@ import { Client } from 'amocrm-js'
 import type { IAmocrmApiClient, AmoLeadPage, AmoLeadFilter } from '#contracts/i_amocrm_api_client'
 import type { AmoLead, AmoEvent, AmoPipeline } from '#types/amocrm'
 import { AmocrmRetryService } from '#utils/amocrm_retry'
+import axios from 'axios'
+import { ApiAuthError } from '#exceptions/api_exceptions'
 
 export interface AmocrmConfig {
   domain: string
   client_id: string
   client_secret: string
+  refresh_token?: string
+  onTokenRefresh?: (newTokens: { access_token: string; refresh_token: string }) => Promise<void>
 }
 
 export class AmocrmApiClient implements IAmocrmApiClient {
-  private readonly client: InstanceType<typeof Client>
+  private client: InstanceType<typeof Client>
+  private config?: Partial<AmocrmConfig>
 
   /**
    * Создаёт клиент для AmoCRM API.
@@ -19,6 +24,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
    * @param config - конфигурация (domain, client_id, client_secret, redirect_uri)
    */
   constructor(token: string, config?: Partial<AmocrmConfig>) {
+    this.config = config
     const domain = config?.domain
     const clientId = config?.client_id
     const clientSecret = config?.client_secret
@@ -44,9 +50,70 @@ export class AmocrmApiClient implements IAmocrmApiClient {
     })
   }
 
+  private async refreshAccessToken(): Promise<void> {
+    if (
+      !this.config?.refresh_token ||
+      !this.config.client_id ||
+      !this.config.client_secret ||
+      !this.config.domain
+    ) {
+      throw new Error('Missing configuration to refresh amoCRM token')
+    }
+
+    try {
+      const response = await axios.post(`https://${this.config.domain}/oauth2/access_token`, {
+        client_id: this.config.client_id,
+        client_secret: this.config.client_secret,
+        grant_type: 'refresh_token',
+        refresh_token: this.config.refresh_token,
+      })
+
+      const newAccessToken = response.data.access_token
+      const newRefreshToken = response.data.refresh_token
+
+      this.client = new Client({
+        domain: this.config.domain,
+        auth: {
+          client_id: this.config.client_id,
+          client_secret: this.config.client_secret,
+          redirect_uri: '',
+          bearer: newAccessToken,
+        },
+      })
+      this.config.refresh_token = newRefreshToken
+
+      if (this.config.onTokenRefresh) {
+        await this.config.onTokenRefresh({
+          access_token: newAccessToken,
+          refresh_token: newRefreshToken,
+        })
+      }
+    } catch (error: any) {
+      throw new Error(`Failed to refresh amoCRM token: ${error.message}`)
+    }
+  }
+
+  private async requestWithRetryAndRefresh(
+    method: string,
+    endpoint: string,
+    params?: any
+  ): Promise<any> {
+    try {
+      return await AmocrmRetryService.call(() => this.client.request.make(method, endpoint, params))
+    } catch (error: any) {
+      if (error instanceof ApiAuthError && this.config?.refresh_token) {
+        await this.refreshAccessToken()
+        return await AmocrmRetryService.call(() =>
+          this.client.request.make(method, endpoint, params)
+        )
+      }
+      throw error
+    }
+  }
+
   async ping(): Promise<boolean> {
     try {
-      await AmocrmRetryService.call(() => this.client.request.make('GET', '/api/v4/account'))
+      await this.requestWithRetryAndRefresh('GET', '/api/v4/account')
       return true
     } catch (error) {
       return false
@@ -73,9 +140,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
 
     let response: any
     try {
-      response = await AmocrmRetryService.call(() =>
-        this.client.request.make('GET', '/api/v4/leads', params)
-      )
+      response = await this.requestWithRetryAndRefresh('GET', '/api/v4/leads', params)
       this.checkStatus(response)
     } catch (error) {
       throw error
@@ -107,9 +172,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
 
           let nextRes: any
           try {
-            nextRes = await AmocrmRetryService.call(() =>
-              this.client.request.make('GET', '/api/v4/leads', nextParams)
-            )
+            nextRes = await this.requestWithRetryAndRefresh('GET', '/api/v4/leads', nextParams)
           } catch (error) {
             throw error
           }
@@ -124,9 +187,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
 
   async getLeadById(id: number): Promise<AmoLead | null> {
     try {
-      const response = await AmocrmRetryService.call(() =>
-        this.client.request.make('GET', `/api/v4/leads/${id}`)
-      )
+      const response = await this.requestWithRetryAndRefresh('GET', `/api/v4/leads/${id}`)
       return (response.data as AmoLead) || null
     } catch (error: unknown) {
       const err = error as { response?: { status?: number } }
@@ -151,9 +212,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
     while (true) {
       let response: any
       try {
-        response = await AmocrmRetryService.call(() =>
-          this.client.request.make('GET', '/api/v4/events', currentParams)
-        )
+        response = await this.requestWithRetryAndRefresh('GET', '/api/v4/events', currentParams)
         this.checkStatus(response)
       } catch (error: any) {
         if (error.response?.status === 204) {
@@ -214,9 +273,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
     while (true) {
       let response: any
       try {
-        response = await AmocrmRetryService.call(() =>
-          this.client.request.make('GET', '/api/v4/leads', currentParams)
-        )
+        response = await this.requestWithRetryAndRefresh('GET', '/api/v4/leads', currentParams)
         this.checkStatus(response)
       } catch (error: any) {
         if (error.response?.status === 204) {
@@ -255,9 +312,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
       }
 
       try {
-        const response = await AmocrmRetryService.call(() =>
-          this.client.request.make('GET', '/api/v4/leads', params)
-        )
+        const response = await this.requestWithRetryAndRefresh('GET', '/api/v4/leads', params)
         const data = response.data as any
         const leads = data._embedded?.leads || []
         allLeads.push(...leads)
@@ -282,9 +337,7 @@ export class AmocrmApiClient implements IAmocrmApiClient {
 
   async getPipelines(): Promise<AmoPipeline[]> {
     try {
-      const response = await AmocrmRetryService.call(() =>
-        this.client.request.make('GET', '/api/v4/leads/pipelines')
-      )
+      const response = await this.requestWithRetryAndRefresh('GET', '/api/v4/leads/pipelines')
       const data = response.data as any
       return data._embedded?.pipelines || []
     } catch (error) {
@@ -293,6 +346,6 @@ export class AmocrmApiClient implements IAmocrmApiClient {
   }
 }
 
-export function createAmocrmClient(token: string): AmocrmApiClient {
-  return new AmocrmApiClient(token)
+export function createAmocrmClient(token: string, config?: Partial<AmocrmConfig>): AmocrmApiClient {
+  return new AmocrmApiClient(token, config)
 }

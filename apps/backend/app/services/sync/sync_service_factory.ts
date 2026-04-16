@@ -5,6 +5,7 @@ import { AmocrmSyncServiceFacade as AmocrmSyncService } from '#services/amocrm/i
 import { AmocrmApiClient } from '#services/amocrm/amocrm_api_client'
 import type { ISyncService } from '#contracts/i_sync_service'
 import type { SyncLoggerService } from '#services/sync/sync_logger_service'
+import { env } from '@project/env'
 
 /**
  * Фабрика для создания sync-сервисов с токеном из IntegrationMetadata.
@@ -27,7 +28,7 @@ export class SyncServiceFactory {
     const meta = await IntegrationMetadata.findByOrFail({ source })
 
     const credentials = meta.credentials || {}
-    const token = (credentials as any).long_token
+    const token = (credentials as any).access_token || (credentials as any).long_token
     if (!token) {
       await this.logger.warn(`SyncServiceFactory: токен для источника '${source}' не установлен`)
       return null
@@ -40,7 +41,27 @@ export class SyncServiceFactory {
       }
 
       case 'amocrm': {
-        const apiClient = new AmocrmApiClient(token, credentials)
+        const amocrmConfig = {
+          domain: (credentials as any).domain,
+          client_id: env.AMOCRM_CLIENT_ID as string,
+          client_secret: env.AMOCRM_CLIENT_SECRET as string,
+          refresh_token: (credentials as any).refresh_token,
+          onTokenRefresh: async (newTokens: { access_token: string; refresh_token: string }) => {
+            const currentMeta = await IntegrationMetadata.findByOrFail({ source })
+            const currentCreds = currentMeta.credentials || {}
+            currentMeta.credentials = {
+              ...currentCreds,
+              access_token: newTokens.access_token,
+              refresh_token: newTokens.refresh_token,
+            }
+            await currentMeta.save()
+            await this.logger.info(
+              `SyncServiceFactory: токены AmoCRM успешно обновлены и сохранены в БД`
+            )
+          },
+        }
+
+        const apiClient = new AmocrmApiClient(token, amocrmConfig)
         return new AmocrmSyncService(apiClient)
       }
 

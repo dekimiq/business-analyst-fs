@@ -2,19 +2,19 @@
 
 # Запуск миграций для всех необходимых проектов
 migrate:
-	cd apps/backend && node ace migration:run --force
-	npm run migrate --workspace=@project/bot-interaction
-	npm run migrate --workspace=@project/node-cron
+	docker compose run --rm backend node ace migration:run --force
+	docker compose run --rm bot-interaction npm run migrate
+	docker compose run --rm node-cron npm run migrate
 
 # Полный откат и запуск миграций заново
 migrate-fresh:
-	cd apps/backend && node ace migration:fresh
-	npm run migrate:rollback --workspace=@project/bot-interaction
-	npm run migrate:rollback --workspace=@project/node-cron
+	docker compose run --rm backend node ace migration:fresh
+	docker compose run --rm bot-interaction npm run migrate:rollback
+	docker compose run --rm node-cron npm run migrate:rollback
 
 # Генерация APP_KEY для бэкенда (AdonisJS)
 generate-key:
-	cd apps/backend && node ace generate:key
+	docker compose run --rm backend node ace generate:key
 
 # Запуск только инфраструктуры (БД, Редис)
 up:
